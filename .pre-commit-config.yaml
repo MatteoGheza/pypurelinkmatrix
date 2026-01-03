@@ -1,0 +1,59 @@
+exclude: |
+  (?x)^(
+      \.git|
+      \.venv|
+      __pycache__|
+      build|
+      dist
+  )/
+
+repos:
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # Black - Code formatter
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        args:
+          - --line-length=100
+          - --target-version=py39
+
+  # Ruff - Linter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.14
+    hooks:
+      - id: ruff
+        args:
+          - --fix
+          - --select=E,F,W,I,N,UP,B,A
+          - --line-length=100
+          - --target-version=py39
+
+  # MyPy - Type checker
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-requests>=2.31.0
+          - types-PyYAML>=6.0.0
+        args:
+          - --warn-return-any
+          - --warn-unused-configs
+          - --check-untyped-defs
+          - --no-implicit-optional
+          - --warn-redundant-casts
+          - --warn-unused-ignores
+          - --warn-no-return
+          - --strict-equality
+          - --ignore-missing-imports
