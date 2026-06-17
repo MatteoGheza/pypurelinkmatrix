@@ -1,12 +1,9 @@
 """PureLink Matrix device connection client."""
 
-import base64
 import logging
 import re
-from typing import Optional
-from urllib.parse import urljoin
 
-import requests
+from aiohttp import ClientSession
 
 from .api.audio import AudioAPI
 from .api.edid import EDIDAPI
@@ -14,7 +11,8 @@ from .api.network import NetworkAPI
 from .api.status import StatusAPI
 from .api.system import SystemAPI
 from .api.video import VideoAPI
-from .exceptions import AuthenticationError, PureLinkConnectionError, ValidationError
+from .auth import PureLinkAuth
+from .exceptions import ValidationError
 from .models import DeviceState
 
 logger = logging.getLogger(__name__)
@@ -31,27 +29,26 @@ class PureLinkClient:
     matrix switching devices.
 
     Attributes:
-        host: The device host address or IP
-        username: Username for authentication
-        session: Requests session for HTTP communication
+        auth: PureLinkAuth instance for authenticated requests
+        state: Local device state representation
     """
 
     def __init__(
         self,
+        websession: ClientSession,
         host: str,
         username: str = "",
         password: str = "",
-        timeout: int = 30,
         use_https: bool = False,
         verify_ssl: bool = True,
     ):
         """Initialize the PureLink client.
 
         Args:
+            websession: aiohttp ClientSession to use
             host: Device host address or IP (e.g., '192.168.1.100' or 'matrix.local')
             username: Username for authentication (1-15 alphanumeric/underscore chars)
             password: Password for authentication (1-15 alphanumeric/underscore chars)
-            timeout: Request timeout in seconds. Defaults to 30.
             use_https: Whether to use HTTPS for connections. Defaults to False.
             verify_ssl: Whether to verify SSL certificates. Defaults to True.
 
@@ -59,25 +56,30 @@ class PureLinkClient:
             ValidationError: If host, username, or password format is invalid.
         """
         self.host = self._validate_host(host)
-        self.username = username
-        self.password = password
-        self.timeout = timeout
-        self.use_https = use_https
-        self.verify_ssl = verify_ssl
-        self.session = requests.Session()
-        self.is_authenticated = False
-        self._base_url = self._build_base_url()
+
+        # Validate credentials if provided
+        if username or password:
+            self._validate_credentials(username, password)
+
+        self.auth = PureLinkAuth(
+            websession,
+            host=self.host,
+            username=username,
+            password=password,
+            use_https=use_https,
+            verify_ssl=verify_ssl,
+        )
 
         # Device state (initialize first so APIs can reference it)
         self.state = DeviceState()
 
         # Initialize API modules
-        self.video = VideoAPI(self.session, self._base_url, self.state)
-        self.audio = AudioAPI(self.session, self._base_url, self.state)
-        self.edid = EDIDAPI(self.session, self._base_url, self.state)
-        self.network = NetworkAPI(self.session, self._base_url)
-        self.system = SystemAPI(self.session, self._base_url)
-        self.status = StatusAPI(self.session, self._base_url)
+        self.video = VideoAPI(self.auth, self.state)
+        self.audio = AudioAPI(self.auth, self.state)
+        self.edid = EDIDAPI(self.auth, self.state)
+        self.network = NetworkAPI(self.auth)
+        self.system = SystemAPI(self.auth)
+        self.status = StatusAPI(self.auth)
 
         logger.debug(f"PureLinkClient initialized for host: {self.host}")
 
@@ -129,130 +131,13 @@ class PureLinkClient:
         if not PASSWORD_PATTERN.match(password):
             raise ValidationError("Password must contain only letters, numbers, and underscores")
 
-    def _build_base_url(self) -> str:
-        """Build the base URL for API requests.
-
-        Returns:
-            The base URL for the device
-        """
-        protocol = "https" if self.use_https else "http"
-        return f"{protocol}://{self.host}"
-
-    @staticmethod
-    def _encode_credentials(username: str, password: str) -> tuple[str, str]:
-        """Encode credentials using base64.
-
-        Follows the same encoding method as the JS example.
-
-        Args:
-            username: Username to encode
-            password: Password to encode
-
-        Returns:
-            Tuple of (encoded_username, encoded_password)
-        """
-        encoded_username = base64.b64encode(username.encode("utf-8")).decode("utf-8")
-        encoded_password = base64.b64encode(password.encode("utf-8")).decode("utf-8")
-        return encoded_username, encoded_password
-
-    def login(self, username: Optional[str] = None, password: Optional[str] = None) -> bool:
+    async def async_login(self) -> bool:
         """Authenticate with the PureLink device.
-
-        Validates credentials and sends login request to device.
-        Credentials can be provided at initialization or at login time.
-
-        Args:
-            username: Username for login. If not provided, uses instance username.
-            password: Password for login. If not provided, uses instance password.
 
         Returns:
             True if authentication was successful
-
-        Raises:
-            ValidationError: If credentials format is invalid
-            AuthenticationError: If authentication fails
-            PureLinkConnectionError: If device connection fails
-
-        Example:
-            >>> client = PureLinkClient(host="192.168.1.100")
-            >>> client.login("admin", "password")
-            True
         """
-        # Use provided credentials or fall back to instance credentials
-        username = username or self.username
-        password = password or self.password
-
-        # Validate credentials
-        try:
-            self._validate_credentials(username, password)
-        except ValidationError as e:
-            logger.error(f"Credential validation failed: {e}")
-            raise
-
-        # Update instance credentials if provided at login time
-        if username != self.username:
-            self.username = username
-        if password != self.password:
-            self.password = password
-
-        # Encode credentials
-        encoded_username, encoded_password = self._encode_credentials(username, password)
-
-        logger.debug(f"Attempting login for user: {username}")
-
-        try:
-            # Prepare login request following the device API format
-            # Based on JS: login.doPost('#login id='+user_name+' psd='+password);
-            url = urljoin(self._base_url, "login.set")
-            body = f"#login id={encoded_username} psd={encoded_password}"
-
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "ISAJAX": "yes",
-            }
-
-            response = self.session.post(
-                url,
-                data=body,
-                headers=headers,
-                timeout=self.timeout,
-                verify=self.verify_ssl,
-            )
-
-            response.raise_for_status()
-
-            # Parse response (device returns status: 0 for fail, 1 for success)
-            response_text = response.text.strip()
-            logger.debug(f"Login response: {response_text}")
-
-            # Try to parse response as JavaScript object notation
-            # Looking for status field in response
-            if "status" in response_text:
-                # Simple check for success status
-                if "status" in response_text and "0" not in response_text.split("status")[1][:5]:
-                    self.is_authenticated = True
-                    logger.info(f"Successfully authenticated as {username}")
-                    return True
-                else:
-                    raise AuthenticationError("Invalid username or password")
-            else:
-                # If no status field, treat non-empty response as success
-                if response_text:
-                    self.is_authenticated = True
-                    logger.info(f"Successfully authenticated as {username}")
-                    return True
-                else:
-                    raise AuthenticationError("Empty response from device")
-
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"Connection error: {e}")
-            raise PureLinkConnectionError(f"Failed to connect to device at {self.host}: {e}") from e
-        except requests.exceptions.Timeout as e:
-            logger.error(f"Request timeout: {e}")
-            raise PureLinkConnectionError(f"Connection to {self.host} timeout: {e}") from e
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request error: {e}")
-            raise PureLinkConnectionError(f"Request failed: {e}") from e
+        return await self.auth.login()
 
     def logout(self) -> bool:
         """Logout from the device.
@@ -260,25 +145,11 @@ class PureLinkClient:
         Returns:
             True if logout was successful
         """
-        self.is_authenticated = False
+        self.auth.is_authenticated = False
         logger.info("Logged out from device")
         return True
 
-    def close(self) -> None:
-        """Close the client session and cleanup resources."""
-        if self.session:
-            self.session.close()
-            logger.debug("Client session closed")
-
-    def __enter__(self):
-        """Context manager entry."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - cleanup resources."""
-        self.close()
-
     def __repr__(self) -> str:
         """String representation of the client."""
-        auth_status = "authenticated" if self.is_authenticated else "not authenticated"
-        return f"PureLinkClient(host={self.host}, user={self.username}, {auth_status})"
+        auth_status = "authenticated" if self.auth.is_authenticated else "not authenticated"
+        return f"PureLinkClient(host={self.host}, user={self.auth.username}, {auth_status})"

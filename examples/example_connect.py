@@ -1,10 +1,12 @@
-"""Example: Connecting to PureLink matrix device."""
+"""Example: Connecting to PureLink matrix device (Async)."""
 
+import asyncio
 import logging
 import os
 import sys
 from pathlib import Path
 
+import aiohttp
 from dotenv import load_dotenv
 
 logging.basicConfig(
@@ -34,46 +36,21 @@ password = os.getenv("PURELINK_PASSWORD", "password")
 host_with_port = f"{host}:{port}" if port != "80" else host
 
 
-def example_basic_login():
+async def example_basic_login():
     """Basic login to device."""
     print("\n=== Basic Login ===")
-    client = PureLinkClient(host=host_with_port)
-    try:
-        if client.login(username, password):
-            print(f"✓ Authenticated: {client}")
-        else:
-            print("✗ Authentication failed")
-    except (ValidationError, AuthenticationError, PureLinkConnectionError) as e:
-        print(f"✗ Error: {e}")
-    finally:
-        client.close()
+    async with aiohttp.ClientSession() as session:
+        client = PureLinkClient(session, host=host_with_port)
+        try:
+            if await client.async_login():
+                print(f"✓ Authenticated: {client}")
+            else:
+                print("✗ Authentication failed")
+        except (ValidationError, AuthenticationError, PureLinkConnectionError) as e:
+            print(f"✗ Error: {e}")
 
 
-def example_context_manager():
-    """Using context manager for automatic cleanup."""
-    print("\n=== Context Manager ===")
-    try:
-        with PureLinkClient(host=host_with_port) as client:
-            if client.login(username, password):
-                print("✓ Connected")
-    except Exception as e:
-        print(f"✗ Error: {e}")
-
-
-def example_credentials_at_login():
-    """Providing credentials at login time."""
-    print("\n=== Credentials at Login ===")
-    client = PureLinkClient(host=host_with_port)
-    try:
-        if client.login(username=username, password=password):
-            print("✓ Authenticated")
-    except Exception as e:
-        print(f"✗ Error: {e}")
-    finally:
-        client.close()
-
-
-def example_input_validation():
+async def example_input_validation():
     """Input validation examples."""
     print("\n=== Input Validation ===")
     invalid = [
@@ -82,18 +59,20 @@ def example_input_validation():
         ("admin_too_long_more_than_15", "password"),
     ]
 
-    for u, p in invalid:
-        try:
-            client = PureLinkClient(host=host_with_port)
-            client.login(u, p)
-        except ValidationError as e:
-            print(f"✓ Caught: {e}")
-        finally:
-            client.close()
+    async with aiohttp.ClientSession() as session:
+        for u, p in invalid:
+            try:
+                client = PureLinkClient(session, host=host_with_port, username=u, password=p)
+                await client.async_login()
+            except ValidationError as e:
+                print(f"✓ Caught: {e}")
 
 
-# Uncomment to run:
-# example_basic_login()
-# example_context_manager()
-# example_credentials_at_login()
-example_input_validation()
+async def main():
+    """Run all examples."""
+    await example_basic_login()
+    await example_input_validation()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

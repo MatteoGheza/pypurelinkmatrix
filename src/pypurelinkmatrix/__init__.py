@@ -2,6 +2,7 @@
 
 __version__ = "0.1.0"
 
+from .auth import PureLinkAuth
 from .client import PureLinkClient
 from .exceptions import (
     AuthenticationError,
@@ -20,6 +21,7 @@ from .models import (
 )
 
 __all__ = [
+    "PureLinkAuth",
     "PureLinkClient",
     "DeviceState",
     "VideoMatrixState",

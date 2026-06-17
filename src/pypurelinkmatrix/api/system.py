@@ -2,9 +2,12 @@
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from ..exceptions import DeviceError
-from ..http_client import post_request
+
+if TYPE_CHECKING:
+    from ..auth import PureLinkAuth
 
 logger = logging.getLogger(__name__)
 
@@ -12,25 +15,20 @@ logger = logging.getLogger(__name__)
 class SystemAPI:
     """API for system configuration and management operations."""
 
-    def __init__(self, session, base_url: str):
+    def __init__(self, auth: "PureLinkAuth"):
         """Initialize system API.
 
         Args:
-            session: Requests session for HTTP communication
-            base_url: Base URL of the device
+            auth: PureLinkAuth instance for HTTP communication
         """
-        self.session = session
-        self.base_url = base_url
+        self.auth = auth
         self.endpoint = "system_set"
 
-    def reboot(self, timeout: int = 30) -> bool:
+    async def async_reboot(self) -> bool:
         """Reboot the device.
 
         Initiates a system reboot. The device will disconnect during the
         reboot process.
-
-        Args:
-            timeout: Request timeout in seconds
 
         Returns:
             True if reboot command was sent successfully
@@ -39,21 +37,19 @@ class SystemAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.reboot()
+            >>> await api.async_reboot()
         """
         try:
             cmd = "#power start=1"
             logger.debug(f"Sending reboot command: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.warning("Device reboot initiated")
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.warning("Device reboot initiated")
 
             return True
 
@@ -61,7 +57,7 @@ class SystemAPI:
             logger.error(f"Failed to reboot device: {e}")
             raise DeviceError(f"Reboot command failed: {e}") from e
 
-    def factory_reset_common(self, timeout: int = 30) -> bool:
+    async def async_factory_reset_common(self) -> bool:
         """Perform factory reset of common settings.
 
         Resets the following to factory defaults:
@@ -74,9 +70,6 @@ class SystemAPI:
         - Presets and custom names
         - User EDID profiles
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
             True if reset command was sent successfully
 
@@ -84,21 +77,19 @@ class SystemAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.factory_reset_common()
+            >>> await api.async_factory_reset_common()
         """
         try:
             cmd = "#factory0"
             logger.debug(f"Sending factory reset (common): {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.warning("Factory reset (common settings) initiated")
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.warning("Factory reset (common settings) initiated")
 
             return True
 
@@ -106,7 +97,7 @@ class SystemAPI:
             logger.error(f"Failed to perform factory reset: {e}")
             raise DeviceError(f"Factory reset failed: {e}") from e
 
-    def factory_reset_all(self, timeout: int = 30) -> bool:
+    async def async_factory_reset_all(self) -> bool:
         """Perform complete factory reset.
 
         Resets all settings to factory defaults, including:
@@ -118,9 +109,6 @@ class SystemAPI:
         - User EDID profiles
         - All user data
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
             True if reset command was sent successfully
 
@@ -128,21 +116,19 @@ class SystemAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.factory_reset_all()
+            >>> await api.async_factory_reset_all()
         """
         try:
             cmd = "#factory1"
             logger.debug(f"Sending factory reset (all): {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.warning("Factory reset (all settings) initiated")
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.warning("Factory reset (all settings) initiated")
 
             return True
 
@@ -150,7 +136,7 @@ class SystemAPI:
             logger.error(f"Failed to perform complete factory reset: {e}")
             raise DeviceError(f"Complete factory reset failed: {e}") from e
 
-    def change_password(self, username: str, password: str, timeout: int = 30) -> bool:
+    async def async_change_password(self, username: str, password: str) -> bool:
         """Change or create user password.
 
         Updates the password for a user. If the user doesn't exist, creates it.
@@ -158,7 +144,6 @@ class SystemAPI:
         Args:
             username: Username (1-15 alphanumeric/underscore chars)
             password: New password (1-15 alphanumeric/underscore chars)
-            timeout: Request timeout in seconds
 
         Returns:
             True if password change was successful
@@ -168,7 +153,7 @@ class SystemAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.change_password('admin', 'newpass123')
+            >>> await api.async_change_password('admin', 'newpass123')
         """
         # Validate credentials
         self._validate_credentials(username, password)
@@ -178,15 +163,13 @@ class SystemAPI:
             cmd = f"#register255 id={username} psd={password}"
             logger.debug("Sending password change command")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Password changed for user '{username}'")
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.info(f"Password changed for user '{username}'")
 
             return True
 

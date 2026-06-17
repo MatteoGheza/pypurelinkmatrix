@@ -1,9 +1,13 @@
 """EDID control API."""
 
 import logging
+from typing import TYPE_CHECKING, Optional
 
 from ..exceptions import DeviceError
-from ..http_client import post_request
+
+if TYPE_CHECKING:
+    from ..auth import PureLinkAuth
+    from ..models import DeviceState
 
 logger = logging.getLogger(__name__)
 
@@ -35,20 +39,18 @@ class EDIDProfile:
 class EDIDAPI:
     """API for EDID control operations."""
 
-    def __init__(self, session, base_url: str, state=None):
+    def __init__(self, auth: "PureLinkAuth", state: Optional["DeviceState"] = None):
         """Initialize EDID API.
 
         Args:
-            session: Requests session for HTTP communication
-            base_url: Base URL of the device
+            auth: PureLinkAuth instance for HTTP communication
             state: Optional reference to DeviceState for updating local state
         """
-        self.session = session
-        self.base_url = base_url
+        self.auth = auth
         self.endpoint = "input.set"
         self.state = state
 
-    def set_input_edid(self, input_num: int, edid_source: int, timeout: int = 30) -> bool:
+    async def async_set_input_edid(self, input_num: int, edid_source: int) -> bool:
         """Set EDID profile for an input.
 
         Available EDID sources:
@@ -60,7 +62,6 @@ class EDIDAPI:
         Args:
             input_num: Input number (1-4, 0 for all)
             edid_source: EDID profile number (1-17)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -70,8 +71,8 @@ class EDIDAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.set_input_edid(1, 1)  # Set Default1 profile on Input 1
-            >>> api.set_input_edid(0, 4)  # Set Default4 on all inputs
+            >>> await api.async_set_input_edid(1, 1)  # Set Default1 profile on Input 1
+            >>> await api.async_set_input_edid(0, 4)  # Set Default4 on all inputs
         """
         if not 0 <= input_num <= 4:
             raise ValueError("Input number must be 0 (all) or 1-4")
@@ -84,14 +85,12 @@ class EDIDAPI:
             cmd = f"#edid in{input_num} cfg={edid_type}/{edid_index}"
             logger.debug(f"Setting input EDID: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
 
             input_label = f"Input {input_num}" if input_num != 0 else "All inputs"
             profile_name = EDIDProfile.PROFILES.get(edid_source, f"Profile {edid_source}")
@@ -111,7 +110,7 @@ class EDIDAPI:
             logger.error(f"Failed to set input EDID: {e}")
             raise DeviceError(f"Input EDID configuration failed: {e}") from e
 
-    def set_user_edid(self, source_profile: int, destination: int, timeout: int = 30) -> bool:
+    async def async_set_user_edid(self, source_profile: int, destination: int) -> bool:
         """Copy EDID profile to user storage.
 
         Copy a source EDID profile (default, user, output, or temp) to a
@@ -120,7 +119,6 @@ class EDIDAPI:
         Args:
             source_profile: Source EDID profile number (1-17)
             destination: Destination user slot (1-4, 0 for all user slots)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -130,8 +128,8 @@ class EDIDAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.set_user_edid(1, 1)  # Copy Default1 to User1
-            >>> api.set_user_edid(2, 0)  # Copy Default2 to all user slots
+            >>> await api.async_set_user_edid(1, 1)  # Copy Default1 to User1
+            >>> await api.async_set_user_edid(2, 0)  # Copy Default2 to all user slots
         """
         if not 1 <= source_profile <= 17:
             raise ValueError("Source profile must be 1-17")
@@ -144,14 +142,12 @@ class EDIDAPI:
             cmd = f"#edid user{destination} cfg={edid_type}/{edid_index}"
             logger.debug(f"Setting user EDID: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
 
             source_name = EDIDProfile.PROFILES.get(source_profile, f"Profile {source_profile}")
             dest_label = f"User{destination}" if destination != 0 else "All user slots"
@@ -186,13 +182,12 @@ class EDIDAPI:
             # Temp profile (type 4)
             return 4, 1
 
-    def rename_input_port(self, input_num: int, name: str, timeout: int = 30) -> bool:
+    async def async_rename_input_port(self, input_num: int, name: str) -> bool:
         """Rename an input port in EDID section.
 
         Args:
             input_num: Input number (1-4)
             name: New name (max 15 characters)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -210,15 +205,13 @@ class EDIDAPI:
             cmd = f"#name{input_num - 1} str={name}"
             logger.debug(f"Renaming input port: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Renamed Input {input_num} to '{name}'")
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.info(f"Renamed Input {input_num} to '{name}'")
 
             return True
 

@@ -2,9 +2,12 @@
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from ..exceptions import DeviceError
-from ..http_client import post_request
+
+if TYPE_CHECKING:
+    from ..auth import PureLinkAuth
 
 logger = logging.getLogger(__name__)
 
@@ -12,23 +15,20 @@ logger = logging.getLogger(__name__)
 class NetworkAPI:
     """API for network configuration operations."""
 
-    def __init__(self, session, base_url: str):
+    def __init__(self, auth: "PureLinkAuth"):
         """Initialize network API.
 
         Args:
-            session: Requests session for HTTP communication
-            base_url: Base URL of the device
+            auth: PureLinkAuth instance for HTTP communication
         """
-        self.session = session
-        self.base_url = base_url
+        self.auth = auth
         self.endpoint = "ip.set"
 
-    def configure_static_ip(
+    async def async_configure_static_ip(
         self,
         ip_address: str,
         subnet_mask: str,
         gateway: str,
-        timeout: int = 30,
     ) -> bool:
         """Configure static IP address and network settings.
 
@@ -36,7 +36,6 @@ class NetworkAPI:
             ip_address: IP address (e.g., '192.168.1.100')
             subnet_mask: Subnet mask (e.g., '255.255.255.0')
             gateway: Default gateway (e.g., '192.168.1.1')
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -46,7 +45,7 @@ class NetworkAPI:
             DeviceError: If configuration fails
 
         Example:
-            >>> api.configure_static_ip(
+            >>> await api.async_configure_static_ip(
             ...     '192.168.1.100',
             ...     '255.255.255.0',
             ...     '192.168.1.1'
@@ -65,17 +64,16 @@ class NetworkAPI:
             cmd = f"#ip ip={ip_address} mask={subnet_mask} " f"gw={gateway}"
             logger.debug(f"Configuring static IP: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(
-                f"Configured static IP: {ip_address}, " f"Mask: {subnet_mask}, Gateway: {gateway}"
-            )
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.info(
+                    f"Configured static IP: {ip_address}, "
+                    f"Mask: {subnet_mask}, Gateway: {gateway}"
+                )
 
             return True
 
@@ -83,12 +81,9 @@ class NetworkAPI:
             logger.error(f"Failed to configure static IP: {e}")
             raise DeviceError(f"Static IP configuration failed: {e}") from e
 
-    def enable_dhcp(self, timeout: int = 30) -> bool:
+    async def async_enable_dhcp(self) -> bool:
         """Enable DHCP for automatic IP configuration.
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
             True if successful
 
@@ -96,16 +91,13 @@ class NetworkAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.enable_dhcp()
+            >>> await api.async_enable_dhcp()
         """
-        return self._set_dhcp(True, timeout)
+        return await self._async_set_dhcp(True)
 
-    def disable_dhcp(self, timeout: int = 30) -> bool:
+    async def async_disable_dhcp(self) -> bool:
         """Disable DHCP for static IP configuration.
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
             True if successful
 
@@ -113,16 +105,15 @@ class NetworkAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.disable_dhcp()
+            >>> await api.async_disable_dhcp()
         """
-        return self._set_dhcp(False, timeout)
+        return await self._async_set_dhcp(False)
 
-    def _set_dhcp(self, enabled: bool, timeout: int) -> bool:
+    async def _async_set_dhcp(self, enabled: bool) -> bool:
         """Set DHCP enabled/disabled state.
 
         Args:
             enabled: True to enable DHCP, False to disable
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -137,14 +128,12 @@ class NetworkAPI:
             cmd = f"#ip dhcp={dhcp_value}"
             logger.debug(f"Setting DHCP: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
 
             status = "enabled" if enabled else "disabled"
             logger.info(f"DHCP {status}")

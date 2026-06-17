@@ -1,11 +1,11 @@
 """Monitor device state and detect routing changes."""
 
+import asyncio
 import logging
 import os
-import threading
-import time
 from typing import Optional
 
+import aiohttp
 from dotenv import load_dotenv
 from pypurelinkmatrix import PureLinkClient
 from pypurelinkmatrix.api import StatusUpdateManager
@@ -33,8 +33,7 @@ class DeviceMonitor:
         """Initialize monitor with PureLink client."""
         self.client = client
         self.manager = StatusUpdateManager(
-            client.session,
-            client._base_url,
+            auth=client.auth,
             initial_fresh_time=800,
         )
 
@@ -46,7 +45,9 @@ class DeviceMonitor:
 
     def _on_runtime_update(self, block: int, data: bytes, size: int) -> None:
         """Handle runtime state changes."""
-        state = self.manager.get_state()
+        # Note: StatusUpdateManager.get_state() is now sync, but should probably be awaited if async
+        # However, looking at status_update_manager.py, it is a normal method returning deepcopy.
+        state = self.manager.web_data
 
         if self.prev_video_mx != state.run.video_mx:
             logger.info("🎬 Video Routing Changed:")
@@ -93,9 +94,9 @@ class DeviceMonitor:
         logger.info("Stopping device monitor...")
         self.manager.stop_updates()
 
-    def print_status(self) -> None:
+    async def print_status(self) -> None:
         """Print current device status."""
-        state = self.manager.get_state()
+        state = await self.manager.async_get_state()
 
         logger.info("=" * 60)
         logger.info("DEVICE STATUS")
@@ -134,73 +135,74 @@ class PeriodicStatusReporter:
         """Initialize reporter with update interval in seconds."""
         self.manager = manager
         self.interval = interval
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
+        self._stop_event = asyncio.Event()
+        self._task: Optional[asyncio.Task] = None
 
     def start(self) -> None:
         """Start periodic reporting."""
         self._stop_event.clear()
-        self._thread = threading.Thread(target=self._report_loop, daemon=True)
-        self._thread.start()
+        self._task = asyncio.create_task(self._report_loop())
         logger.info(f"Started periodic reporter (every {self.interval}s)")
 
     def stop(self) -> None:
         """Stop periodic reporting."""
         self._stop_event.set()
-        if self._thread:
-            self._thread.join(timeout=5)
+        if self._task:
+            self._task.cancel()
         logger.info("Stopped periodic reporter")
 
-    def _report_loop(self) -> None:
+    async def _report_loop(self) -> None:
         """Background loop for periodic reporting."""
         while not self._stop_event.is_set():
-            state = self.manager.get_state()
+            state = await self.manager.async_get_state()
             logger.info(f"📊 IP: {state.ip.ip} | Video: {state.run.video_mx}")
-            self._stop_event.wait(self.interval)
+            try:
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self.interval)
+            except asyncio.TimeoutError:
+                continue
 
 
-def main():
+async def main():
     """Run advanced monitoring."""
-
-    try:
-        logger.info(f"Connecting to {host_with_port}...")
-        client = PureLinkClient(host=host_with_port)
-
-        if not client.login(username, password):
-            logger.error("Authentication failed")
-            return 1
-
-        monitor = DeviceMonitor(client)
-        reporter = PeriodicStatusReporter(manager=monitor.manager, interval=15)
-
-        monitor.start()
-        reporter.start()
-
+    async with aiohttp.ClientSession() as session:
         try:
-            logger.info("Waiting for status update...")
-            time.sleep(2)
-            monitor.print_status()
+            logger.info(f"Connecting to {host_with_port}...")
+            client = PureLinkClient(session, host=host_with_port)
 
-            logger.info("Monitoring (press Ctrl+C to stop)...")
-            while True:
-                time.sleep(1)
+            if not await client.async_login():
+                logger.error("Authentication failed")
+                return 1
 
-        except KeyboardInterrupt:
-            logger.info("Stopped by user")
+            monitor = DeviceMonitor(client)
+            reporter = PeriodicStatusReporter(manager=monitor.manager, interval=15)
 
-        finally:
-            reporter.stop()
-            monitor.stop()
-            monitor.print_status()
-            client.close()
-            logger.info("Monitor closed")
+            monitor.start()
+            reporter.start()
 
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        return 1
+            try:
+                logger.info("Waiting for status update...")
+                await asyncio.sleep(2)
+                await monitor.print_status()
+
+                logger.info("Monitoring (press Ctrl+C to stop)...")
+                while True:
+                    await asyncio.sleep(1)
+
+            except KeyboardInterrupt:
+                logger.info("Stopped by user")
+
+            finally:
+                reporter.stop()
+                monitor.stop()
+                await monitor.print_status()
+                logger.info("Monitor closed")
+
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            return 1
 
     return 0
 
 
 if __name__ == "__main__":
-    exit(main())
+    exit(asyncio.run(main()))

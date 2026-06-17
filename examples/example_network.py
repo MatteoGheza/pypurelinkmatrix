@@ -1,11 +1,12 @@
 """Network configuration and IP management."""
 
+import asyncio
 import logging
 import os
 import sys
-import time
 from pathlib import Path
 
+import aiohttp
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -27,38 +28,41 @@ password = os.getenv("PURELINK_PASSWORD", "password")
 # Handle port if not default 80
 host_with_port = f"{host}:{port}" if port != "80" else host
 
-# Static IP Configuration
-print("\n=== Static IP Configuration ===")
 
-try:
-    with PureLinkClient(host=host_with_port) as client:
-        if not client.login(username, password):
+async def main():
+    async with aiohttp.ClientSession() as session:
+        client = PureLinkClient(session, host=host_with_port)
+
+        if not await client.async_login():
             print("✗ Authentication failed")
-        else:
-            print("✓ Connected")
+            return
+
+        print("✓ Connected")
+
+        # Static IP Configuration
+        print("\n=== Static IP Configuration ===")
+        try:
             print("\nConfiguring static IP address...")
-            client.network.configure_static_ip(
+            await client.network.async_configure_static_ip(
                 ip_address="192.168.1.150",
                 subnet_mask="255.255.255.0",
                 gateway="192.168.1.1",
             )
             print("✓ Static IP configured (192.168.1.150)")
-except (DeviceError, ValueError) as e:
-    print(f"✗ Error: {e}")
+        except (DeviceError, ValueError) as e:
+            print(f"✗ Error: {e}")
 
-time.sleep(1)
+        await asyncio.sleep(1)
 
-# DHCP Configuration
-print("\n=== DHCP Configuration ===")
-
-try:
-    with PureLinkClient(host=host_with_port) as client:
-        if not client.login(username, password):
-            print("✗ Authentication failed")
-        else:
-            print("✓ Connected")
+        # DHCP Configuration
+        print("\n=== DHCP Configuration ===")
+        try:
             print("\nEnabling DHCP...")
-            client.network.enable_dhcp()
+            await client.network.async_enable_dhcp()
             print("✓ DHCP enabled (device will receive IP from DHCP server)")
-except DeviceError as e:
-    print(f"✗ Error: {e}")
+        except DeviceError as e:
+            print(f"✗ Error: {e}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

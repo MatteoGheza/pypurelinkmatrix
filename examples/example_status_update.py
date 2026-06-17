@@ -1,9 +1,10 @@
 """Example: Status update manager with callbacks."""
 
+import asyncio
 import logging
 import os
-import time
 
+import aiohttp
 from dotenv import load_dotenv
 from pypurelinkmatrix import PureLinkClient
 from pypurelinkmatrix.api import StatusUpdateManager
@@ -46,51 +47,49 @@ def on_port_names_update(block_num: int, data: bytes, size: int) -> None:
     logger.info(f"[Block 3] Port/preset names updated ({size} bytes)")
 
 
-def main():
+async def main():
     """Run status update manager with callbacks."""
-    client = PureLinkClient(host=host_with_port)
+    async with aiohttp.ClientSession() as session:
+        client = PureLinkClient(session, host=host_with_port)
 
-    # Login to device
-    if not client.login(username, password):
-        logger.error("Authentication failed")
-        return
+        # Login to device
+        if not await client.async_login():
+            logger.error("Authentication failed")
+            return
 
-    logger.info("Creating status update manager...")
-    update_manager = StatusUpdateManager(
-        session=client.session,
-        base_url=client._base_url,
-        initial_fresh_time=800,
-    )
+        logger.info("Creating status update manager...")
+        update_manager = StatusUpdateManager(
+            auth=client.auth,
+            initial_fresh_time=800,
+        )
 
-    logger.info("Registering callbacks...")
-    update_manager.register_callback(0, on_network_update)
-    update_manager.register_callback(1, on_runtime_update)
-    update_manager.register_callback(2, on_edid_names_update)
-    update_manager.register_callback(3, on_port_names_update)
+        logger.info("Registering callbacks...")
+        update_manager.register_callback(0, on_network_update)
+        update_manager.register_callback(1, on_runtime_update)
+        update_manager.register_callback(2, on_edid_names_update)
+        update_manager.register_callback(3, on_port_names_update)
 
-    logger.info("Starting updates...")
-    update_manager.start_updates()
+        logger.info("Starting updates...")
+        update_manager.start_updates()
 
-    try:
-        logger.info("Updates running... (10 seconds)")
-        for i in range(10):
-            time.sleep(1)
-            if i % 3 == 0:
-                state = update_manager.get_state()
-                logger.info(f"IP: {state.ip.ip}, Video: {state.run.video_mx}")
+        try:
+            logger.info("Updates running... (10 seconds)")
+            for i in range(10):
+                await asyncio.sleep(1)
+                if i % 3 == 0:
+                    state = await update_manager.async_get_state()
+                    logger.info(f"IP: {state.ip.ip}, Video: {state.run.video_mx}")
 
-    except KeyboardInterrupt:
-        logger.info("Stopped by user")
+        except KeyboardInterrupt:
+            logger.info("Stopped by user")
 
-    finally:
-        logger.info("Stopping updates...")
-        update_manager.stop_updates()
+        finally:
+            logger.info("Stopping updates...")
+            update_manager.stop_updates()
 
-        state = update_manager.get_state()
-        logger.info(f"Final state - IP: {state.ip.ip}, DHCP: {state.ip.dhcp}")
-
-        client.close()
+            state = await update_manager.async_get_state()
+            logger.info(f"Final state - IP: {state.ip.ip}, DHCP: {state.ip.dhcp}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

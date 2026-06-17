@@ -1,9 +1,9 @@
 """Tests for PureLink client."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import pytest
-import requests
 from pypurelinkmatrix import PureLinkClient
 from pypurelinkmatrix.exceptions import (
     AuthenticationError,
@@ -12,48 +12,51 @@ from pypurelinkmatrix.exceptions import (
 )
 
 
+@pytest.fixture
+def mock_session():
+    """Mock aiohttp ClientSession."""
+    session = MagicMock(spec=aiohttp.ClientSession)
+    return session
+
+
 class TestPureLinkClientInitialization:
     """Test client initialization."""
 
-    def test_init_with_all_params(self):
+    def test_init_with_all_params(self, mock_session):
         """Test initialization with all parameters."""
         client = PureLinkClient(
+            websession=mock_session,
             host="127.0.0.1",
             username="admin",
             password="password",
-            timeout=60,
+            use_https=True,
             verify_ssl=False,
         )
         assert client.host == "127.0.0.1"
-        assert client.username == "admin"
-        assert client.password == "password"
-        assert client.timeout == 60
-        assert client.verify_ssl is False
-        assert client.is_authenticated is False
+        assert client.auth.username == "admin"
+        assert client.auth.password == "password"
+        assert client.auth.use_https is True
+        assert client.auth.verify_ssl is False
+        assert client.auth.is_authenticated is False
 
-    def test_init_with_minimal_params(self):
+    def test_init_with_minimal_params(self, mock_session):
         """Test initialization with minimal parameters."""
-        client = PureLinkClient(host="device.local")
+        client = PureLinkClient(websession=mock_session, host="device.local")
         assert client.host == "device.local"
-        assert client.username == ""
-        assert client.password == ""
-        assert client.timeout == 30
-        assert client.verify_ssl is True
+        assert client.auth.username == ""
+        assert client.auth.password == ""
+        assert client.auth.use_https is False
+        assert client.auth.verify_ssl is True
 
-    def test_init_host_whitespace_trimmed(self):
+    def test_init_host_whitespace_trimmed(self, mock_session):
         """Test that host whitespace is trimmed."""
-        client = PureLinkClient(host="  127.0.0.1  ")
+        client = PureLinkClient(websession=mock_session, host="  127.0.0.1  ")
         assert client.host == "127.0.0.1"
 
-    def test_init_invalid_host_empty(self):
+    def test_init_invalid_host_empty(self, mock_session):
         """Test initialization with empty host."""
         with pytest.raises(ValidationError):
-            PureLinkClient(host="")
-
-    def test_init_invalid_host_none(self):
-        """Test initialization with None host."""
-        with pytest.raises(ValidationError):
-            PureLinkClient(host="")
+            PureLinkClient(websession=mock_session, host="")
 
 
 class TestCredentialValidation:
@@ -113,166 +116,92 @@ class TestCredentialValidation:
                 PureLinkClient._validate_credentials("admin", password)
 
 
-class TestEncodeCredentials:
-    """Test credential encoding."""
-
-    def test_encode_credentials(self):
-        """Test base64 encoding of credentials."""
-        username, password = PureLinkClient._encode_credentials("admin", "password")
-
-        # Decode and verify
-        import base64
-
-        assert base64.b64decode(username).decode("utf-8") == "admin"
-        assert base64.b64decode(password).decode("utf-8") == "password"
-
-    def test_encode_special_valid_chars(self):
-        """Test encoding with underscores and numbers."""
-        username, password = PureLinkClient._encode_credentials("user_01", "pass_99")
-
-        import base64
-
-        assert base64.b64decode(username).decode("utf-8") == "user_01"
-        assert base64.b64decode(password).decode("utf-8") == "pass_99"
-
-
+@pytest.mark.asyncio
 class TestLogin:
     """Test login functionality."""
 
-    @patch("pypurelinkmatrix.client.requests.Session.post")
-    def test_login_success(self, mock_post):
+    async def test_login_success(self, mock_session):
         """Test successful login."""
-        mock_response = Mock()
-        mock_response.text = "status:1"
-        mock_response.raise_for_status = Mock()
-        mock_post.return_value = mock_response
+        mock_response = AsyncMock()
+        mock_response.text.return_value = 'settingsLoginCallback({"status":"1","str":""});'
+        mock_response.raise_for_status = MagicMock()
+        mock_response.__aenter__.return_value = mock_response
 
-        client = PureLinkClient(host="127.0.0.1")
-        result = client.login("admin", "password")
+        mock_session.post.return_value = mock_response
+
+        client = PureLinkClient(
+            mock_session, host="127.0.0.1", username="admin", password="password"
+        )
+        result = await client.async_login()
 
         assert result is True
-        assert client.is_authenticated is True
-        mock_post.assert_called_once()
+        assert client.auth.is_authenticated is True
+        mock_session.post.assert_called_once()
 
-    @patch("pypurelinkmatrix.client.requests.Session.post")
-    def test_login_failure(self, mock_post):
+    async def test_login_failure(self, mock_session):
         """Test failed login."""
-        mock_response = Mock()
-        mock_response.text = "status:0"
-        mock_response.raise_for_status = Mock()
-        mock_post.return_value = mock_response
+        mock_response = AsyncMock()
+        mock_response.text.return_value = 'settingsLoginCallback({"status":"0","str":""});'
+        mock_response.raise_for_status = MagicMock()
+        mock_response.__aenter__.return_value = mock_response
 
-        client = PureLinkClient(host="127.0.0.1")
+        mock_session.post.return_value = mock_response
+
+        client = PureLinkClient(
+            mock_session, host="127.0.0.1", username="admin", password="password"
+        )
 
         with pytest.raises(AuthenticationError):
-            client.login("admin", "wrongpassword")
+            await client.async_login()
 
-        assert client.is_authenticated is False
+        assert client.auth.is_authenticated is False
 
-    def test_login_validation_error(self):
-        """Test login with invalid credentials."""
-        client = PureLinkClient(host="127.0.0.1")
-
-        with pytest.raises(ValidationError):
-            client.login("invalid@user", "password")
-
-    @patch("pypurelinkmatrix.client.requests.Session.post")
-    def test_login_connection_error(self, mock_post):
+    async def test_login_connection_error(self, mock_session):
         """Test login with connection error."""
-        mock_post.side_effect = requests.exceptions.ConnectionError("Connection failed")
+        mock_session.post.side_effect = aiohttp.ClientError("Connection failed")
 
-        client = PureLinkClient(host="127.0.0.1")
-
-        with pytest.raises(PureLinkConnectionError):
-            client.login("admin", "password")
-
-    @patch("pypurelinkmatrix.client.requests.Session.post")
-    def test_login_timeout(self, mock_post):
-        """Test login with timeout."""
-        mock_post.side_effect = requests.exceptions.Timeout("Request timeout")
-
-        client = PureLinkClient(host="127.0.0.1")
+        client = PureLinkClient(
+            mock_session, host="127.0.0.1", username="admin", password="password"
+        )
 
         with pytest.raises(PureLinkConnectionError):
-            client.login("admin", "password")
-
-    def test_login_with_instance_credentials(self):
-        """Test login using instance credentials."""
-        client = PureLinkClient(host="127.0.0.1", username="admin", password="password")
-
-        with patch("pypurelinkmatrix.client.requests.Session.post") as mock_post:
-            mock_response = Mock()
-            mock_response.text = "status:1"
-            mock_response.raise_for_status = Mock()
-            mock_post.return_value = mock_response
-
-            result = client.login()
-            assert result is True
-
-    def test_login_credentials_override(self):
-        """Test that login credentials override instance credentials."""
-        client = PureLinkClient(host="127.0.0.1", username="user1", password="pass1")
-
-        with patch("pypurelinkmatrix.client.requests.Session.post") as mock_post:
-            mock_response = Mock()
-            mock_response.text = "status:1"
-            mock_response.raise_for_status = Mock()
-            mock_post.return_value = mock_response
-
-            result = client.login("user2", "pass2")
-            assert result is True
-            assert client.username == "user2"
-            assert client.password == "pass2"
-
-
-class TestContextManager:
-    """Test context manager functionality."""
-
-    def test_context_manager_enter_exit(self):
-        """Test context manager entry and exit."""
-        with PureLinkClient(host="127.0.0.1") as client:
-            assert client is not None
-            assert client.host == "127.0.0.1"
-
-    def test_context_manager_closes_session(self):
-        """Test that context manager closes session."""
-        client = PureLinkClient(host="127.0.0.1")
-        with patch.object(client, "close") as mock_close:
-            with client:
-                pass
-            mock_close.assert_called_once()
+            await client.async_login()
 
 
 class TestLogout:
     """Test logout functionality."""
 
-    def test_logout(self):
+    def test_logout(self, mock_session):
         """Test logout."""
-        client = PureLinkClient(host="127.0.0.1")
-        client.is_authenticated = True
+        client = PureLinkClient(mock_session, host="127.0.0.1")
+        client.auth.is_authenticated = True
 
         result = client.logout()
 
         assert result is True
-        assert client.is_authenticated is False
+        assert client.auth.is_authenticated is False
 
 
 class TestRepresentation:
     """Test string representation."""
 
-    def test_repr_not_authenticated(self):
+    def test_repr_not_authenticated(self, mock_session):
         """Test repr when not authenticated."""
-        client = PureLinkClient(host="127.0.0.1", username="admin")
+        client = PureLinkClient(
+            mock_session, host="127.0.0.1", username="admin", password="password"
+        )
         repr_str = repr(client)
 
         assert "127.0.0.1" in repr_str
         assert "admin" in repr_str
         assert "not authenticated" in repr_str
 
-    def test_repr_authenticated(self):
+    def test_repr_authenticated(self, mock_session):
         """Test repr when authenticated."""
-        client = PureLinkClient(host="127.0.0.1", username="admin")
-        client.is_authenticated = True
+        client = PureLinkClient(
+            mock_session, host="127.0.0.1", username="admin", password="password"
+        )
+        client.auth.is_authenticated = True
         repr_str = repr(client)
 
         assert "127.0.0.1" in repr_str

@@ -1,11 +1,12 @@
 """Audio output control and configuration."""
 
+import asyncio
 import logging
 import os
 import sys
-import time
 from pathlib import Path
 
+import aiohttp
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -27,48 +28,51 @@ password = os.getenv("PURELINK_PASSWORD", "password")
 # Handle port if not default 80
 host_with_port = f"{host}:{port}" if port != "80" else host
 
-# HDMI Audio Control
-print("\n=== HDMI Audio Control ===")
 
-try:
-    with PureLinkClient(host=host_with_port) as client:
-        if not client.login(username, password):
+async def main():
+    async with aiohttp.ClientSession() as session:
+        client = PureLinkClient(session, host=host_with_port)
+
+        if not await client.async_login():
             print("✗ Authentication failed")
-        else:
-            print("✓ Connected")
+            return
+
+        print("✓ Connected")
+
+        # HDMI Audio Control
+        print("\n=== HDMI Audio Control ===")
+        try:
             print("\nEnabling HDMI audio on output 1...")
-            client.audio.set_hdmi_output(output=1, enabled=True)
-            time.sleep(1)
+            await client.audio.async_set_hdmi_output(output=1, enabled=True)
+            await asyncio.sleep(1)
             print("Disabling HDMI audio on output 2...")
-            client.audio.set_hdmi_output(output=2, enabled=False)
-            time.sleep(1)
+            await client.audio.async_set_hdmi_output(output=2, enabled=False)
+            await asyncio.sleep(1)
             print("Enabling HDMI audio on all outputs...")
-            client.audio.set_hdmi_output(output=0, enabled=True)
-            time.sleep(1)
+            await client.audio.async_set_hdmi_output(output=0, enabled=True)
+            await asyncio.sleep(1)
             print("✓ HDMI audio configuration updated")
-except DeviceError as e:
-    print(f"✗ Error: {e}")
+        except DeviceError as e:
+            print(f"✗ Error: {e}")
 
-time.sleep(2)
+        await asyncio.sleep(2)
 
-# De-Embed Audio Control
-print("\n=== De-Embed Audio Control ===")
-
-try:
-    with PureLinkClient(host=host_with_port) as client:
-        if not client.login(username, password):
-            print("✗ Authentication failed")
-        else:
-            print("✓ Connected")
+        # De-Embed Audio Control
+        print("\n=== De-Embed Audio Control ===")
+        try:
             print("\nEnabling de-embed audio on output 1...")
-            client.audio.set_de_embed_output(output=1, enabled=True)
-            time.sleep(1)
+            await client.audio.async_set_de_embed_output(output=1, enabled=True)
+            await asyncio.sleep(1)
             print("Disabling de-embed on output 2...")
-            client.audio.set_de_embed_output(output=2, enabled=False)
-            time.sleep(1)
+            await client.audio.async_set_de_embed_output(output=2, enabled=False)
+            await asyncio.sleep(1)
             print("Disabling de-embed on all outputs...")
-            client.audio.set_de_embed_output(output=0, enabled=False)
-            time.sleep(1)
+            await client.audio.async_set_de_embed_output(output=0, enabled=False)
+            await asyncio.sleep(1)
             print("✓ De-embed audio configuration updated")
-except DeviceError as e:
-    print(f"✗ Error: {e}")
+        except DeviceError as e:
+            print(f"✗ Error: {e}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

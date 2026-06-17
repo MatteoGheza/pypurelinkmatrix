@@ -1,11 +1,14 @@
 """Device status and state query API."""
 
+import asyncio
 import logging
 import struct
-import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..exceptions import DeviceError
+
+if TYPE_CHECKING:
+    from ..auth import PureLinkAuth
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,7 @@ def _bytes_to_uint32_array(data: bytes) -> list[int]:
         data: Byte array to convert
 
     Returns:
-        List of 32-bit unsigned integers
+        list of 32-bit unsigned integers
     """
     result = []
     for i in range(0, len(data), 4):
@@ -111,15 +114,13 @@ def calculate_crc32(data: bytes) -> str:
 class StatusAPI:
     """API for querying device status and current state."""
 
-    def __init__(self, session, base_url: str):
+    def __init__(self, auth: "PureLinkAuth"):
         """Initialize status API.
 
         Args:
-            session: Requests session for HTTP communication
-            base_url: Base URL of the device
+            auth: PureLinkAuth instance for HTTP communication
         """
-        self.session = session
-        self.base_url = base_url
+        self.auth = auth
         # Track CRC values for data blocks (initially 0)
         self.data_crc = ["0", "0", "0", "0"]
         # Track data sizes for parsing
@@ -132,57 +133,51 @@ class StatusAPI:
 
         Returns:
             Full endpoint path with CRC values and timestamp
-            Format: binary<crc0>,<crc1>,<crc2>,<crc3>.get<timestamp>
+            Format: binary<crc0>,<crc1>,<crc2>,<crc3> (base for auth.request)
         """
-        timestamp = int(time.time() * 1000)
-        # Correct format with commas: binary0,0,0,0.get<timestamp>
+        # Correct format with commas: binary0,0,0,0
         crc_str = ",".join(self.data_crc)
-        return f"binary{crc_str}.get{timestamp}"
+        return f"binary{crc_str}.get"
 
-    def get_video_routing(self, timeout: int = 30) -> dict[str, int]:
+    async def async_get_video_routing(self) -> dict[str, int]:
         """Get current video matrix routing.
 
         Returns the current input-to-output routing for video.
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
-            Dictionary mapping output numbers to input numbers
+            dictionary mapping output numbers to input numbers
             Example: {1: 2, 2: 2, 3: 1, 4: 3}
 
         Raises:
             DeviceError: If query fails
 
         Example:
-            >>> routing = api.get_video_routing()
+            >>> routing = await api.async_get_video_routing()
             >>> print(routing)  # {1: 2, 2: 2, 3: 1, 4: 3}
         """
         try:
             # Add delay to allow device to process previous command
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
 
             # Fetch with CRC values from previous query (or initial zeros)
             endpoint = self._get_binary_endpoint()
-            url = f"{self.base_url}/{endpoint}"
-            logger.debug(f"GET request to {url} with CRCs: {self.data_crc}")
+            logger.debug(f"GET request to {endpoint} with CRCs: {self.data_crc}")
 
             # Request binary data
-            response = self.session.get(
-                url,
-                timeout=timeout,
-                verify=False,
+            async with await self.auth.request(
+                "GET",
+                endpoint,
                 headers={"Accept": "application/octet-stream"},
-                allow_redirects=True,
-            )
-            response.raise_for_status()
+            ) as response:
+                response.raise_for_status()
+                content = await response.read()
 
             # Must have data
-            if not response.content:
+            if not content:
                 raise ValueError("Empty response from binary endpoint")
 
             # Parse the binary response and update cache
-            self._parse_binary_response(response.content)
+            self._parse_binary_response(content)
 
             routing = self._parse_video_routing()
             logger.info(f"Retrieved video routing: {routing}")
@@ -239,16 +234,13 @@ class StatusAPI:
         except (IndexError, struct.error) as e:
             logger.debug(f"Error parsing data block sizes: {e}")
 
-    def get_audio_output_state(self, timeout: int = 30) -> dict[str, dict[str, bool]]:
+    async def async_get_audio_output_state(self) -> dict[str, dict[str, bool]]:
         """Get current audio output state for all outputs.
 
         Returns the current HDMI and de-embedded audio state for each output.
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
-            Dictionary with output state
+            dictionary with output state
             Example: {
                 '1': {'hdmi': True, 'de_embed': False},
                 '2': {'hdmi': True, 'de_embed': False},
@@ -260,17 +252,18 @@ class StatusAPI:
             DeviceError: If query fails
 
         Example:
-            >>> audio_state = api.get_audio_output_state()
+            >>> audio_state = await api.async_get_audio_output_state()
             >>> print(audio_state['1'])  # {'hdmi': True, 'de_embed': False}
         """
         try:
             endpoint = self._get_binary_endpoint()
-            url = f"{self.base_url}/{endpoint}"
-            logger.debug(f"GET request to {url}")
-            response = self.session.get(url, timeout=timeout, verify=False)
-            response.raise_for_status()
+            logger.debug(f"GET request to {endpoint}")
 
-            self._parse_binary_response(response.content)
+            async with await self.auth.request("GET", endpoint) as response:
+                response.raise_for_status()
+                content = await response.read()
+
+            self._parse_binary_response(content)
             audio_state = self._parse_audio_state()
             logger.info(f"Retrieved audio output state: {audio_state}")
             return audio_state
@@ -283,16 +276,13 @@ class StatusAPI:
             # Return default audio state if endpoint not available
             return {str(i): {"hdmi": True, "de_embed": False} for i in range(1, 5)}
 
-    def get_edid_configuration(self, timeout: int = 30) -> dict[str, dict[str, Any]]:
+    async def async_get_edid_configuration(self) -> dict[str, dict[str, Any]]:
         """Get current EDID configuration for all inputs.
 
         Returns the current EDID profile assigned to each input.
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
-            Dictionary with EDID configuration for each input
+            dictionary with EDID configuration for each input
             Example: {
                 '1': {'type': 0, 'index': 1, 'name': 'Default1'},
                 '2': {'type': 0, 'index': 4, 'name': 'Default4'},
@@ -304,17 +294,18 @@ class StatusAPI:
             DeviceError: If query fails
 
         Example:
-            >>> edid_config = api.get_edid_configuration()
+            >>> edid_config = await api.async_get_edid_configuration()
             >>> print(edid_config['1'])  # {'type': 0, 'index': 1, 'name': 'Default1'}
         """
         try:
             endpoint = self._get_binary_endpoint()
-            url = f"{self.base_url}/{endpoint}"
-            logger.debug(f"GET request to {url}")
-            response = self.session.get(url, timeout=timeout, verify=False)
-            response.raise_for_status()
+            logger.debug(f"GET request to {endpoint}")
 
-            self._parse_binary_response(response.content)
+            async with await self.auth.request("GET", endpoint) as response:
+                response.raise_for_status()
+                content = await response.read()
+
+            self._parse_binary_response(content)
             edid_config = self._parse_edid_configuration()
             logger.info(f"Retrieved EDID configuration: {edid_config}")
             return edid_config
@@ -327,16 +318,13 @@ class StatusAPI:
             # Return default EDID config if endpoint not available
             return {str(i): {"type": 0, "index": 0, "name": "Default1"} for i in range(1, 5)}
 
-    def get_port_names(self, timeout: int = 30) -> dict[str, dict[str, str]]:
+    async def async_get_port_names(self) -> dict[str, dict[str, str]]:
         """Get custom port names for inputs, outputs, and presets.
 
         Returns the custom names assigned to ports and presets.
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
-            Dictionary with port names
+            dictionary with port names
             Example: {
                 'inputs': {
                     '1': 'Camera_Main',
@@ -366,17 +354,18 @@ class StatusAPI:
             DeviceError: If query fails
 
         Example:
-            >>> names = api.get_port_names()
+            >>> names = await api.async_get_port_names()
             >>> print(names['inputs']['1'])  # 'Camera_Main'
         """
         try:
             endpoint = self._get_binary_endpoint()
-            url = f"{self.base_url}/{endpoint}"
-            logger.debug(f"GET request to {url}")
-            response = self.session.get(url, timeout=timeout, verify=False)
-            response.raise_for_status()
+            logger.debug(f"GET request to {endpoint}")
 
-            self._parse_binary_response(response.content)
+            async with await self.auth.request("GET", endpoint) as response:
+                response.raise_for_status()
+                content = await response.read()
+
+            self._parse_binary_response(content)
             port_names = self._parse_port_names()
             logger.info(f"Retrieved port names: {port_names}")
             return port_names
@@ -393,30 +382,27 @@ class StatusAPI:
                 "presets": {str(i): f"Preset_{i}" for i in range(1, 9)},
             }
 
-    def get_full_status(self, timeout: int = 30) -> dict[str, Any]:
+    async def async_get_full_status(self) -> dict[str, Any]:
         """Get complete device status including all routing and configuration.
 
         Returns all available status information from the device in one query.
 
-        Args:
-            timeout: Request timeout in seconds
-
         Returns:
-            Dictionary with complete device status
+            dictionary with complete device status
 
         Raises:
             DeviceError: If query fails
 
         Example:
-            >>> status = api.get_full_status()
+            >>> status = await api.async_get_full_status()
             >>> print(status.keys())
         """
         try:
             full_status = {
-                "video_routing": self.get_video_routing(timeout=timeout),
-                "audio_state": self.get_audio_output_state(timeout=timeout),
-                "edid_config": self.get_edid_configuration(timeout=timeout),
-                "port_names": self.get_port_names(timeout=timeout),
+                "video_routing": await self.async_get_video_routing(),
+                "audio_state": await self.async_get_audio_output_state(),
+                "edid_config": await self.async_get_edid_configuration(),
+                "port_names": await self.async_get_port_names(),
             }
 
             logger.info("Retrieved complete device status")
@@ -427,16 +413,7 @@ class StatusAPI:
             raise DeviceError(f"Failed to query device status: {e}") from e
 
     def _parse_video_routing(self) -> dict[str, int]:
-        """Parse video routing from device binary response.
-
-        Uses exact JavaScript logic from ParseData1:
-        for(var i=0;i<4;i++){
-            window.web_data.run.video_mx[i] = byteArray[start_run+start_audio_num+i]&0x3f;
-        }
-
-        Returns:
-            Dictionary mapping outputs to inputs (1-based)
-        """
+        """Parse video routing from device binary response."""
         routing = {str(i): 1 for i in range(1, 5)}
 
         try:
@@ -445,16 +422,13 @@ class StatusAPI:
                 logger.warning("Runtime data too short, cannot parse video routing")
                 return routing
 
-            # Extract video matrix routing from block 1
-            # window.web_data.run.video_mx[i] = byteArray[start_run+start_audio_num+i]&0x3f;
             for output in range(1, 5):
                 byte_idx = output - 1
                 raw_val = block_data[byte_idx]
-                input_val = raw_val & 0x3F  # Mask to lower 6 bits
+                input_val = raw_val & 0x3F
 
-                # video_mx values represent which input (1-4) is connected to each output
                 if input_val > 4:
-                    input_val = 1  # Default to input 1 if invalid
+                    input_val = 1
 
                 routing[str(output)] = input_val
 
@@ -466,16 +440,7 @@ class StatusAPI:
         return routing
 
     def _parse_audio_state(self) -> dict[str, dict[str, bool]]:
-        """Parse binary audio output state from device response.
-
-        Data block 1 layout (audio data):
-        - Bytes 4-7: audio_hdmi[0-3] - HDMI audio enable for each output
-        - Bytes 8-11: audio_dec[0-3] - De-embedded audio enable for each output
-
-        Returns:
-            Dictionary with audio state for each output
-        """
-        # Default audio state
+        """Parse binary audio output state from device response."""
         audio_state = {str(i): {"hdmi": True, "de_embed": False} for i in range(1, 5)}
 
         try:
@@ -485,9 +450,6 @@ class StatusAPI:
                 logger.warning("Runtime data too short for audio state")
                 return audio_state
 
-            # Parse audio state
-            # Bytes 4-7: HDMI audio for outputs 1-4
-            # Bytes 8-11: De-embedded audio for outputs 1-4
             for output in range(1, 5):
                 hdmi_val = block_data[4 + (output - 1)]
                 de_embed_val = block_data[8 + (output - 1)]
@@ -505,15 +467,7 @@ class StatusAPI:
         return audio_state
 
     def _parse_edid_configuration(self) -> dict[str, dict[str, Any]]:
-        """Parse binary EDID configuration from device response.
-
-        Data block 1 layout (EDID data indices at offset 16):
-        - Bytes 16-19: edid_inf[0-3] - Active EDID index for each input
-
-        Returns:
-            Dictionary with EDID config for each input
-        """
-        # Default EDID config
+        """Parse binary EDID configuration from device response."""
         edid_config = {str(i): {"type": 0, "index": 0, "name": "Default1"} for i in range(1, 5)}
 
         try:
@@ -547,7 +501,6 @@ class StatusAPI:
                 "Reserved4",
             ]
 
-            # Parse EDID indices (bytes 16-19 in data block 1)
             for input_num in range(1, 5):
                 edid_idx = block_data[16 + (input_num - 1)]
 
@@ -567,15 +520,7 @@ class StatusAPI:
         return edid_config
 
     def _parse_port_names(self) -> dict[str, dict[str, str]]:
-        """Parse binary custom port names from cached data block 3.
-
-        Data block 3 layout:
-        - Bytes 0-127: port_name[0-7] - 8 port names (16 bytes each)
-        - Bytes 128-255: preset_name[0-7] - 8 preset names (16 bytes each)
-
-        Returns:
-            Dictionary with port names
-        """
+        """Parse binary custom port names from cached data block 3."""
         port_names = {
             "inputs": {str(i): f"Input_{i}" for i in range(1, 5)},
             "outputs": {str(i): f"Output_{i}" for i in range(1, 5)},
@@ -586,10 +531,8 @@ class StatusAPI:
             block_3_data = self.data_blocks[3]
 
             if len(block_3_data) < 256:
-                logger.warning(f"Cached Data block 3 too short: need 256, have {len(block_3_data)}")
                 return port_names
 
-            # Parse port names (first 4 are inputs, next 4 are outputs)
             for i in range(4):
                 name_offset = i * 16
                 name_bytes = block_3_data[name_offset : name_offset + 16]
@@ -604,15 +547,12 @@ class StatusAPI:
                 if name_str:
                     port_names["outputs"][str(i + 1)] = name_str
 
-            # Extract preset names (start after the 8 port names, at byte 128)
             for i in range(8):
                 name_offset = 128 + (i * 16)
                 name_bytes = block_3_data[name_offset : name_offset + 16]
                 name_str = name_bytes.split(b"\x00")[0].decode("utf-8", errors="ignore").strip()
                 if name_str:
                     port_names["presets"][str(i + 1)] = name_str
-
-            logger.debug(f"Parsed port names: {port_names}")
 
         except (IndexError, ValueError, UnicodeDecodeError) as e:
             logger.debug(f"Error parsing port names: {e}")

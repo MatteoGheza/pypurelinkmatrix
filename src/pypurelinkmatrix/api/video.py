@@ -1,9 +1,13 @@
 """Video matrix control API."""
 
 import logging
+from typing import TYPE_CHECKING, Optional
 
 from ..exceptions import DeviceError
-from ..http_client import post_request
+
+if TYPE_CHECKING:
+    from ..auth import PureLinkAuth
+    from ..models import DeviceState
 
 logger = logging.getLogger(__name__)
 
@@ -11,20 +15,18 @@ logger = logging.getLogger(__name__)
 class VideoAPI:
     """API for video matrix control operations."""
 
-    def __init__(self, session, base_url: str, state=None):
+    def __init__(self, auth: "PureLinkAuth", state: "Optional[DeviceState]" = None):
         """Initialize video API.
 
         Args:
-            session: Requests session for HTTP communication
-            base_url: Base URL of the device
+            auth: PureLinkAuth instance for HTTP communication
             state: Optional reference to DeviceState for updating local state
         """
-        self.session = session
-        self.base_url = base_url
+        self.auth = auth
         self.endpoint = "video_set"
         self.state = state
 
-    def switch_matrix(self, output_port: int, input_port: int, timeout: int = 30) -> bool:
+    async def async_switch_matrix(self, output_port: int, input_port: int) -> bool:
         """Switch video matrix input to output.
 
         Routes an input to one or more outputs. Output 0 means all outputs.
@@ -32,7 +34,6 @@ class VideoAPI:
         Args:
             output_port: Output number (1-4 for specific, 0 for all outputs)
             input_port: Input number (1-4)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -41,8 +42,8 @@ class VideoAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.switch_matrix(1, 2)  # Route Input 2 to Output 1
-            >>> api.switch_matrix(0, 3)  # Route Input 3 to all outputs
+            >>> await api.async_switch_matrix(1, 2)  # Route Input 2 to Output 1
+            >>> await api.async_switch_matrix(0, 3)  # Route Input 3 to all outputs
         """
         if not 0 <= output_port <= 4:
             raise ValueError("Output must be 0 (all) or 1-4")
@@ -56,15 +57,13 @@ class VideoAPI:
             cmd = f"#video_d out{device_output} matrix={input_port}"
             logger.debug(f"Switching matrix: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Routed Input {input_port} to Output {output_port}")
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.info(f"Routed Input {input_port} to Output {output_port}")
 
             # Update local state if available
             if self.state and output_port != 0:
@@ -80,14 +79,13 @@ class VideoAPI:
             logger.error(f"Failed to switch matrix: {e}")
             raise DeviceError(f"Matrix switch failed: {e}") from e
 
-    def save_preset(self, preset_num: int, timeout: int = 30) -> bool:
+    async def async_save_preset(self, preset_num: int) -> bool:
         """Save current matrix configuration to a preset.
 
         Saves the current input/output routing to a numbered preset (1-8).
 
         Args:
             preset_num: Preset number (1-8)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -97,7 +95,7 @@ class VideoAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.save_preset(1)  # Save to Preset 1
+            >>> await api.async_save_preset(1)  # Save to Preset 1
         """
         if not 1 <= preset_num <= 8:
             raise ValueError("Preset number must be 1-8")
@@ -106,29 +104,26 @@ class VideoAPI:
             cmd = f"#preset:{preset_num} exe=1"
             logger.debug(f"Saving preset: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Saved configuration to Preset {preset_num}")
-            return True
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.info(f"Saved configuration to Preset {preset_num}")
+                return True
 
         except Exception as e:
             logger.error(f"Failed to save preset: {e}")
             raise DeviceError(f"Preset save failed: {e}") from e
 
-    def recall_preset(self, preset_num: int, timeout: int = 30) -> bool:
+    async def async_recall_preset(self, preset_num: int) -> bool:
         """Recall a saved preset configuration.
 
         Restores a previously saved preset (1-8).
 
         Args:
             preset_num: Preset number (1-8)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -138,7 +133,7 @@ class VideoAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.recall_preset(1)  # Load Preset 1
+            >>> await api.async_recall_preset(1)  # Load Preset 1
         """
         if not 1 <= preset_num <= 8:
             raise ValueError("Preset number must be 1-8")
@@ -147,22 +142,20 @@ class VideoAPI:
             cmd = f"#preset:{preset_num} exe=0"
             logger.debug(f"Recalling preset: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Recalled Preset {preset_num}")
-            return True
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.info(f"Recalled Preset {preset_num}")
+                return True
 
         except Exception as e:
             logger.error(f"Failed to recall preset: {e}")
             raise DeviceError(f"Preset recall failed: {e}") from e
 
-    def rename_input(self, input_num: int, name: str, timeout: int = 30) -> bool:
+    async def async_rename_input(self, input_num: int, name: str) -> bool:
         """Rename an input port.
 
         Sets a custom name for an input port (max 15 characters).
@@ -170,7 +163,6 @@ class VideoAPI:
         Args:
             input_num: Input number (1-4)
             name: New name (1-15 alphanumeric/underscore characters)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -180,16 +172,16 @@ class VideoAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.rename_input(1, "Camera_Main")
+            >>> await api.async_rename_input(1, "Camera_Main")
         """
         if not 1 <= input_num <= 4:
             raise ValueError("Input number must be 1-4")
 
-        return self._rename_port(
-            input_num, name, name_index_offset=0, port_type="Input", timeout=timeout
+        return await self._async_rename_port(
+            input_num, name, name_index_offset=0, port_type="Input"
         )
 
-    def rename_output(self, output_num: int, name: str, timeout: int = 30) -> bool:
+    async def async_rename_output(self, output_num: int, name: str) -> bool:
         """Rename an output port.
 
         Sets a custom name for an output port (max 15 characters).
@@ -197,7 +189,6 @@ class VideoAPI:
         Args:
             output_num: Output number (1-4)
             name: New name (1-15 alphanumeric/underscore characters)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -207,16 +198,16 @@ class VideoAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.rename_output(1, "Display_Main")
+            >>> await api.async_rename_output(1, "Display_Main")
         """
         if not 1 <= output_num <= 4:
             raise ValueError("Output number must be 1-4")
 
-        return self._rename_port(
-            output_num, name, name_index_offset=4, port_type="Output", timeout=timeout
+        return await self._async_rename_port(
+            output_num, name, name_index_offset=4, port_type="Output"
         )
 
-    def rename_preset(self, preset_num: int, name: str, timeout: int = 30) -> bool:
+    async def async_rename_preset(self, preset_num: int, name: str) -> bool:
         """Rename a preset.
 
         Sets a custom name for a preset (max 15 characters).
@@ -224,7 +215,6 @@ class VideoAPI:
         Args:
             preset_num: Preset number (1-8)
             name: New name (1-15 alphanumeric/underscore characters)
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -234,17 +224,17 @@ class VideoAPI:
             DeviceError: If operation fails
 
         Example:
-            >>> api.rename_preset(1, "Conference")
+            >>> await api.async_rename_preset(1, "Conference")
         """
         if not 1 <= preset_num <= 8:
             raise ValueError("Preset number must be 1-8")
 
-        return self._rename_port(
-            preset_num, name, name_index_offset=8, port_type="Preset", timeout=timeout
+        return await self._async_rename_port(
+            preset_num, name, name_index_offset=8, port_type="Preset"
         )
 
-    def _rename_port(
-        self, port_num: int, name: str, name_index_offset: int, port_type: str, timeout: int
+    async def _async_rename_port(
+        self, port_num: int, name: str, name_index_offset: int, port_type: str
     ) -> bool:
         """Generic method to rename a port or preset.
 
@@ -253,7 +243,6 @@ class VideoAPI:
             name: New name
             name_index_offset: Offset for the name index calculation
             port_type: Type of port ("Input", "Output", or "Preset")
-            timeout: Request timeout in seconds
 
         Returns:
             True if successful
@@ -268,16 +257,14 @@ class VideoAPI:
             cmd = f"#name{name_index} str={name}"
             logger.debug(f"Renaming {port_type.lower()}: {cmd}")
 
-            response = post_request(
-                self.session,
-                self.base_url,
+            async with await self.auth.request(
+                "POST",
                 self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Renamed {port_type} {port_num} to '{name}'")
-            return True
+                data=cmd,
+            ) as response:
+                response.raise_for_status()
+                logger.info(f"Renamed {port_type} {port_num} to '{name}'")
+                return True
 
         except Exception as e:
             logger.error(f"Failed to rename {port_type.lower()}: {e}")
