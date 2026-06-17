@@ -35,16 +35,18 @@ class EDIDProfile:
 class EDIDAPI:
     """API for EDID control operations."""
 
-    def __init__(self, session, base_url: str):
+    def __init__(self, session, base_url: str, state=None):
         """Initialize EDID API.
 
         Args:
             session: Requests session for HTTP communication
             base_url: Base URL of the device
+            state: Optional reference to DeviceState for updating local state
         """
         self.session = session
         self.base_url = base_url
         self.endpoint = "input.set"
+        self.state = state
 
     def set_input_edid(self, input_num: int, edid_source: int, timeout: int = 30) -> bool:
         """Set EDID profile for an input.
@@ -77,23 +79,7 @@ class EDIDAPI:
             raise ValueError("EDID source must be 1-17")
 
         try:
-            # Determine EDID type and index based on source
-            if edid_source <= 8:
-                # Default profiles (type 0)
-                edid_type = 0
-                edid_index = edid_source
-            elif edid_source <= 12:
-                # User profiles (type 1)
-                edid_type = 1
-                edid_index = edid_source - 8
-            elif edid_source <= 16:
-                # Output profiles (type 2)
-                edid_type = 2
-                edid_index = edid_source - 12
-            else:
-                # Temp profile (type 4)
-                edid_type = 4
-                edid_index = 1
+            edid_type, edid_index = self._get_edid_type_and_index(edid_source)
 
             cmd = f"#edid in{input_num} cfg={edid_type}/{edid_index}"
             logger.debug(f"Setting input EDID: {cmd}")
@@ -110,6 +96,14 @@ class EDIDAPI:
             input_label = f"Input {input_num}" if input_num != 0 else "All inputs"
             profile_name = EDIDProfile.PROFILES.get(edid_source, f"Profile {edid_source}")
             logger.info(f"Set {input_label} EDID to {profile_name}")
+
+            # Update local state if available
+            if self.state and input_num != 0:
+                self.state.edid._set_input_edid(input_num, edid_source)
+            elif self.state and input_num == 0:
+                # Update all inputs
+                for inp in range(1, 5):
+                    self.state.edid._set_input_edid(inp, edid_source)
 
             return True
 
@@ -145,19 +139,7 @@ class EDIDAPI:
             raise ValueError("Destination must be 0 (all) or 1-4")
 
         try:
-            # Determine source EDID type and index
-            if source_profile <= 8:
-                edid_type = 0
-                edid_index = source_profile
-            elif source_profile <= 12:
-                edid_type = 1
-                edid_index = source_profile - 8
-            elif source_profile <= 16:
-                edid_type = 2
-                edid_index = source_profile - 12
-            else:
-                edid_type = 4
-                edid_index = 1
+            edid_type, edid_index = self._get_edid_type_and_index(source_profile)
 
             cmd = f"#edid user{destination} cfg={edid_type}/{edid_index}"
             logger.debug(f"Setting user EDID: {cmd}")
@@ -180,6 +162,29 @@ class EDIDAPI:
         except Exception as e:
             logger.error(f"Failed to set user EDID: {e}")
             raise DeviceError(f"User EDID configuration failed: {e}") from e
+
+    @staticmethod
+    def _get_edid_type_and_index(edid_source: int) -> tuple[int, int]:
+        """Convert EDID source to type and index for device command.
+
+        Args:
+            edid_source: EDID profile number (1-17)
+
+        Returns:
+            Tuple of (edid_type, edid_index)
+        """
+        if edid_source <= 8:
+            # Default profiles (type 0)
+            return 0, edid_source
+        elif edid_source <= 12:
+            # User profiles (type 1)
+            return 1, edid_source - 8
+        elif edid_source <= 16:
+            # Output profiles (type 2)
+            return 2, edid_source - 12
+        else:
+            # Temp profile (type 4)
+            return 4, 1
 
     def rename_input_port(self, input_num: int, name: str, timeout: int = 30) -> bool:
         """Rename an input port in EDID section.

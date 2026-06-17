@@ -133,3 +133,7 @@ dmypy.json
 # UV specific
 .venv/
 uv.lock
+
+# Test/temporary files
+.gemini
+test.html

@@ -53,28 +53,26 @@ class VideoMatrixState:
     output_3_input: int = 0
     output_4_input: int = 0
 
-    def set_output_input(self, output: int, input_port: int) -> None:
-        """Set which input is routed to an output."""
-        if output == 1:
-            self.output_1_input = input_port
-        elif output == 2:
-            self.output_2_input = input_port
-        elif output == 3:
-            self.output_3_input = input_port
-        elif output == 4:
-            self.output_4_input = input_port
+    def _set_output_input(self, output: int, input_port: int) -> None:
+        """Internal method: Set which input is routed to an output."""
+        outputs = {
+            1: "output_1_input",
+            2: "output_2_input",
+            3: "output_3_input",
+            4: "output_4_input",
+        }
+        if output in outputs:
+            setattr(self, outputs[output], input_port)
 
     def get_output_input(self, output: int) -> int:
         """Get which input is routed to an output."""
-        if output == 1:
-            return self.output_1_input
-        elif output == 2:
-            return self.output_2_input
-        elif output == 3:
-            return self.output_3_input
-        elif output == 4:
-            return self.output_4_input
-        return 0
+        outputs = {
+            1: "output_1_input",
+            2: "output_2_input",
+            3: "output_3_input",
+            4: "output_4_input",
+        }
+        return getattr(self, outputs[output], 0) if output in outputs else 0
 
 
 @dataclass
@@ -97,15 +95,13 @@ class AudioState:
 
     def get_output(self, output_num: int) -> Optional[AudioOutputState]:
         """Get audio state for a specific output."""
-        if output_num == 1:
-            return self.output_1
-        elif output_num == 2:
-            return self.output_2
-        elif output_num == 3:
-            return self.output_3
-        elif output_num == 4:
-            return self.output_4
-        return None
+        outputs = {
+            1: self.output_1,
+            2: self.output_2,
+            3: self.output_3,
+            4: self.output_4,
+        }
+        return outputs.get(output_num)
 
 
 @dataclass
@@ -117,28 +113,26 @@ class EDIDState:
     input_3_edid: int = 0
     input_4_edid: int = 0
 
-    def set_input_edid(self, input_num: int, edid_index: int) -> None:
-        """Set EDID for an input."""
-        if input_num == 1:
-            self.input_1_edid = edid_index
-        elif input_num == 2:
-            self.input_2_edid = edid_index
-        elif input_num == 3:
-            self.input_3_edid = edid_index
-        elif input_num == 4:
-            self.input_4_edid = edid_index
+    def _set_input_edid(self, input_num: int, edid_index: int) -> None:
+        """Internal method: Set EDID for an input."""
+        inputs = {
+            1: "input_1_edid",
+            2: "input_2_edid",
+            3: "input_3_edid",
+            4: "input_4_edid",
+        }
+        if input_num in inputs:
+            setattr(self, inputs[input_num], edid_index)
 
     def get_input_edid(self, input_num: int) -> int:
         """Get EDID for an input."""
-        if input_num == 1:
-            return self.input_1_edid
-        elif input_num == 2:
-            return self.input_2_edid
-        elif input_num == 3:
-            return self.input_3_edid
-        elif input_num == 4:
-            return self.input_4_edid
-        return 0
+        inputs = {
+            1: "input_1_edid",
+            2: "input_2_edid",
+            3: "input_3_edid",
+            4: "input_4_edid",
+        }
+        return getattr(self, inputs[input_num], 0) if input_num in inputs else 0
 
 
 @dataclass

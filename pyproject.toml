@@ -30,6 +30,13 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+simulator = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "rich>=13.0.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=7.4.0",
@@ -44,12 +51,20 @@ test = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
 ]
+simulator = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "rich>=13.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/matteogheza/pypurelinkmatrix"
 Documentation = "https://pypurelinkmatrix.readthedocs.io"
 Repository = "https://github.com/matteogheza/pypurelinkmatrix.git"
 Issues = "https://github.com/matteogheza/pypurelinkmatrix/issues"
+
+[project.scripts]
+purelink-sim = "pypurelinkmatrix.simulator.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pypurelinkmatrix"]

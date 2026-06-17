@@ -27,6 +27,7 @@ PureLinkClient(
     username: str = "",
     password: str = "",
     timeout: int = 30,
+    use_https: bool = False,
     verify_ssl: bool = True
 )
 ```
@@ -36,6 +37,7 @@ PureLinkClient(
 - `username` - Login username (1-15 alphanumeric/underscore)
 - `password` - Login password (1-15 alphanumeric/underscore)
 - `timeout` - Request timeout in seconds (default: 30)
+- `use_https` - Use HTTPS for connection (default: False)
 - `verify_ssl` - Verify SSL certificates (default: True)
 
 ### Methods
@@ -97,10 +99,10 @@ Route an input to an output(s).
 
 ```python
 # Route Input 2 to Output 1
-client.video.switch_matrix(output=1, input_port=2)
+client.video.switch_matrix(output_port=1, input_port=2)
 
 # Route Input 3 to all outputs
-client.video.switch_matrix(output=0, input_port=3)
+client.video.switch_matrix(output_port=0, input_port=3)
 ```
 
 **Parameters:**
@@ -469,31 +471,40 @@ state.port_names # PortNames
 
 ### VideoMatrixState
 
-Video matrix routing configuration.
+Video matrix routing configuration (read-only, updated automatically by API calls).
 
 ```python
-state.video.set_output_input(output=1, input_port=2)
+# Get current routing
 input_port = state.video.get_output_input(output=1)
+
+# Use API to set routing (updates state automatically)
+client.video.switch_matrix(output_port=1, input_port=2)
 ```
 
 ### AudioState
 
-Audio output configuration for all outputs.
+Audio output configuration for all outputs (read-only, updated automatically by API calls).
 
 ```python
 output_1 = state.audio.get_output(1)
 if output_1:
     print(output_1.hdmi_enabled)
     print(output_1.de_embed_enabled)
+
+# Use API to change settings (updates state automatically)
+client.audio.set_hdmi_output(output=1, enabled=True)
 ```
 
 ### EDIDState
 
-EDID configuration for all inputs.
+EDID configuration for all inputs (read-only, updated automatically by API calls).
 
 ```python
-state.edid.set_input_edid(input_num=1, edid_index=5)
+# Get current EDID
 edid = state.edid.get_input_edid(input_num=1)
+
+# Use API to set EDID (updates state automatically)
+client.edid.set_input_edid(input_num=1, edid_source=1)
 ```
 
 ### NetworkState
@@ -566,8 +577,8 @@ with PureLinkClient(host="192.168.1.100") as client:
     client.login("admin", "password")
 
     # Configure video routing
-    client.video.switch_matrix(output=1, input_port=1)
-    client.video.switch_matrix(output=2, input_port=2)
+    client.video.switch_matrix(output_port=1, input_port=1)
+    client.video.switch_matrix(output_port=2, input_port=2)
 
     # Set names
     client.video.rename_input(1, "Presenter")
@@ -618,7 +629,7 @@ Always wrap operations in try-except blocks:
 
 ```python
 try:
-    client.video.switch_matrix(output=1, input_port=2)
+    client.video.switch_matrix(output_port=1, input_port=2)
 except ValueError as e:
     print(f"Invalid parameters: {e}")
 except DeviceError as e:
@@ -651,4 +662,4 @@ client.video.switch_matrix(1, 2)
 
 ---
 
-For more examples, see `scripts/example_full_api.py`
+For more examples, see `examples/example_full_api.py`

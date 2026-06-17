@@ -11,16 +11,18 @@ logger = logging.getLogger(__name__)
 class AudioAPI:
     """API for audio output control operations."""
 
-    def __init__(self, session, base_url: str):
+    def __init__(self, session, base_url: str, state=None):
         """Initialize audio API.
 
         Args:
             session: Requests session for HTTP communication
             base_url: Base URL of the device
+            state: Optional reference to DeviceState for updating local state
         """
         self.session = session
         self.base_url = base_url
         self.endpoint = "audio_set"
+        self.state = state
 
     def set_hdmi_output(self, output: int, enabled: bool, timeout: int = 30) -> bool:
         """Enable/disable HDMI audio output.
@@ -108,6 +110,24 @@ class AudioAPI:
             mode_label = "HDMI" if mode == 0 else "De-Embed"
             status = "enabled" if enabled else "disabled"
             logger.info(f"{mode_label} {status} on {output_label}")
+
+            # Update local state if available
+            if self.state and output != 0:
+                audio_output = self.state.audio.get_output(output)
+                if audio_output:
+                    if mode == 0:
+                        audio_output.hdmi_enabled = enabled
+                    else:
+                        audio_output.de_embed_enabled = enabled
+            elif self.state and output == 0:
+                # Update all outputs
+                for out in range(1, 5):
+                    audio_output = self.state.audio.get_output(out)
+                    if audio_output:
+                        if mode == 0:
+                            audio_output.hdmi_enabled = enabled
+                        else:
+                            audio_output.de_embed_enabled = enabled
 
             return True
 

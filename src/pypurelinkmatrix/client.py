@@ -11,6 +11,7 @@ import requests
 from .api.audio import AudioAPI
 from .api.edid import EDIDAPI
 from .api.network import NetworkAPI
+from .api.status import StatusAPI
 from .api.system import SystemAPI
 from .api.video import VideoAPI
 from .exceptions import AuthenticationError, PureLinkConnectionError, ValidationError
@@ -41,6 +42,7 @@ class PureLinkClient:
         username: str = "",
         password: str = "",
         timeout: int = 30,
+        use_https: bool = False,
         verify_ssl: bool = True,
     ):
         """Initialize the PureLink client.
@@ -50,6 +52,7 @@ class PureLinkClient:
             username: Username for authentication (1-15 alphanumeric/underscore chars)
             password: Password for authentication (1-15 alphanumeric/underscore chars)
             timeout: Request timeout in seconds. Defaults to 30.
+            use_https: Whether to use HTTPS for connections. Defaults to False.
             verify_ssl: Whether to verify SSL certificates. Defaults to True.
 
         Raises:
@@ -59,20 +62,22 @@ class PureLinkClient:
         self.username = username
         self.password = password
         self.timeout = timeout
+        self.use_https = use_https
         self.verify_ssl = verify_ssl
         self.session = requests.Session()
         self.is_authenticated = False
         self._base_url = self._build_base_url()
 
+        # Device state (initialize first so APIs can reference it)
+        self.state = DeviceState()
+
         # Initialize API modules
-        self.video = VideoAPI(self.session, self._base_url)
-        self.audio = AudioAPI(self.session, self._base_url)
-        self.edid = EDIDAPI(self.session, self._base_url)
+        self.video = VideoAPI(self.session, self._base_url, self.state)
+        self.audio = AudioAPI(self.session, self._base_url, self.state)
+        self.edid = EDIDAPI(self.session, self._base_url, self.state)
         self.network = NetworkAPI(self.session, self._base_url)
         self.system = SystemAPI(self.session, self._base_url)
-
-        # Device state
-        self.state = DeviceState()
+        self.status = StatusAPI(self.session, self._base_url)
 
         logger.debug(f"PureLinkClient initialized for host: {self.host}")
 
@@ -130,7 +135,7 @@ class PureLinkClient:
         Returns:
             The base URL for the device
         """
-        protocol = "https" if self.verify_ssl else "http"
+        protocol = "https" if self.use_https else "http"
         return f"{protocol}://{self.host}"
 
     @staticmethod

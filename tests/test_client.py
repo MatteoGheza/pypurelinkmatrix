@@ -18,13 +18,13 @@ class TestPureLinkClientInitialization:
     def test_init_with_all_params(self):
         """Test initialization with all parameters."""
         client = PureLinkClient(
-            host="192.168.1.100",
+            host="127.0.0.1",
             username="admin",
             password="password",
             timeout=60,
             verify_ssl=False,
         )
-        assert client.host == "192.168.1.100"
+        assert client.host == "127.0.0.1"
         assert client.username == "admin"
         assert client.password == "password"
         assert client.timeout == 60
@@ -42,8 +42,8 @@ class TestPureLinkClientInitialization:
 
     def test_init_host_whitespace_trimmed(self):
         """Test that host whitespace is trimmed."""
-        client = PureLinkClient(host="  192.168.1.100  ")
-        assert client.host == "192.168.1.100"
+        client = PureLinkClient(host="  127.0.0.1  ")
+        assert client.host == "127.0.0.1"
 
     def test_init_invalid_host_empty(self):
         """Test initialization with empty host."""
@@ -147,7 +147,7 @@ class TestLogin:
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        client = PureLinkClient(host="192.168.1.100")
+        client = PureLinkClient(host="127.0.0.1")
         result = client.login("admin", "password")
 
         assert result is True
@@ -162,7 +162,7 @@ class TestLogin:
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
 
-        client = PureLinkClient(host="192.168.1.100")
+        client = PureLinkClient(host="127.0.0.1")
 
         with pytest.raises(AuthenticationError):
             client.login("admin", "wrongpassword")
@@ -171,7 +171,7 @@ class TestLogin:
 
     def test_login_validation_error(self):
         """Test login with invalid credentials."""
-        client = PureLinkClient(host="192.168.1.100")
+        client = PureLinkClient(host="127.0.0.1")
 
         with pytest.raises(ValidationError):
             client.login("invalid@user", "password")
@@ -181,7 +181,7 @@ class TestLogin:
         """Test login with connection error."""
         mock_post.side_effect = requests.exceptions.ConnectionError("Connection failed")
 
-        client = PureLinkClient(host="192.168.1.100")
+        client = PureLinkClient(host="127.0.0.1")
 
         with pytest.raises(PureLinkConnectionError):
             client.login("admin", "password")
@@ -191,14 +191,14 @@ class TestLogin:
         """Test login with timeout."""
         mock_post.side_effect = requests.exceptions.Timeout("Request timeout")
 
-        client = PureLinkClient(host="192.168.1.100")
+        client = PureLinkClient(host="127.0.0.1")
 
         with pytest.raises(PureLinkConnectionError):
             client.login("admin", "password")
 
     def test_login_with_instance_credentials(self):
         """Test login using instance credentials."""
-        client = PureLinkClient(host="192.168.1.100", username="admin", password="password")
+        client = PureLinkClient(host="127.0.0.1", username="admin", password="password")
 
         with patch("pypurelinkmatrix.client.requests.Session.post") as mock_post:
             mock_response = Mock()
@@ -211,7 +211,7 @@ class TestLogin:
 
     def test_login_credentials_override(self):
         """Test that login credentials override instance credentials."""
-        client = PureLinkClient(host="192.168.1.100", username="user1", password="pass1")
+        client = PureLinkClient(host="127.0.0.1", username="user1", password="pass1")
 
         with patch("pypurelinkmatrix.client.requests.Session.post") as mock_post:
             mock_response = Mock()
@@ -230,13 +230,13 @@ class TestContextManager:
 
     def test_context_manager_enter_exit(self):
         """Test context manager entry and exit."""
-        with PureLinkClient(host="192.168.1.100") as client:
+        with PureLinkClient(host="127.0.0.1") as client:
             assert client is not None
-            assert client.host == "192.168.1.100"
+            assert client.host == "127.0.0.1"
 
     def test_context_manager_closes_session(self):
         """Test that context manager closes session."""
-        client = PureLinkClient(host="192.168.1.100")
+        client = PureLinkClient(host="127.0.0.1")
         with patch.object(client, "close") as mock_close:
             with client:
                 pass
@@ -248,7 +248,7 @@ class TestLogout:
 
     def test_logout(self):
         """Test logout."""
-        client = PureLinkClient(host="192.168.1.100")
+        client = PureLinkClient(host="127.0.0.1")
         client.is_authenticated = True
 
         result = client.logout()
@@ -262,19 +262,19 @@ class TestRepresentation:
 
     def test_repr_not_authenticated(self):
         """Test repr when not authenticated."""
-        client = PureLinkClient(host="192.168.1.100", username="admin")
+        client = PureLinkClient(host="127.0.0.1", username="admin")
         repr_str = repr(client)
 
-        assert "192.168.1.100" in repr_str
+        assert "127.0.0.1" in repr_str
         assert "admin" in repr_str
         assert "not authenticated" in repr_str
 
     def test_repr_authenticated(self):
         """Test repr when authenticated."""
-        client = PureLinkClient(host="192.168.1.100", username="admin")
+        client = PureLinkClient(host="127.0.0.1", username="admin")
         client.is_authenticated = True
         repr_str = repr(client)
 
-        assert "192.168.1.100" in repr_str
+        assert "127.0.0.1" in repr_str
         assert "admin" in repr_str
         assert "authenticated" in repr_str

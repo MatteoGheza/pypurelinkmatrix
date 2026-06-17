@@ -11,24 +11,26 @@ logger = logging.getLogger(__name__)
 class VideoAPI:
     """API for video matrix control operations."""
 
-    def __init__(self, session, base_url: str):
+    def __init__(self, session, base_url: str, state=None):
         """Initialize video API.
 
         Args:
             session: Requests session for HTTP communication
             base_url: Base URL of the device
+            state: Optional reference to DeviceState for updating local state
         """
         self.session = session
         self.base_url = base_url
         self.endpoint = "video_set"
+        self.state = state
 
-    def switch_matrix(self, output: int, input_port: int, timeout: int = 30) -> bool:
+    def switch_matrix(self, output_port: int, input_port: int, timeout: int = 30) -> bool:
         """Switch video matrix input to output.
 
         Routes an input to one or more outputs. Output 0 means all outputs.
 
         Args:
-            output: Output number (1-4 for specific, 0 for all outputs)
+            output_port: Output number (1-4 for specific, 0 for all outputs)
             input_port: Input number (1-4)
             timeout: Request timeout in seconds
 
@@ -42,13 +44,13 @@ class VideoAPI:
             >>> api.switch_matrix(1, 2)  # Route Input 2 to Output 1
             >>> api.switch_matrix(0, 3)  # Route Input 3 to all outputs
         """
-        if not 0 <= output <= 4:
+        if not 0 <= output_port <= 4:
             raise ValueError("Output must be 0 (all) or 1-4")
         if not 1 <= input_port <= 4:
             raise ValueError("Input port must be 1-4")
 
         # Convert output 0 to 256 for all outputs
-        device_output = 256 if output == 0 else output
+        device_output = 256 if output_port == 0 else output_port
 
         try:
             cmd = f"#video_d out{device_output} matrix={input_port}"
@@ -62,7 +64,16 @@ class VideoAPI:
                 timeout=timeout,
             )
             response.raise_for_status()
-            logger.info(f"Routed Input {input_port} to Output {output}")
+            logger.info(f"Routed Input {input_port} to Output {output_port}")
+
+            # Update local state if available
+            if self.state and output_port != 0:
+                self.state.video._set_output_input(output_port, input_port)
+            elif self.state and output_port == 0:
+                # Update all outputs
+                for out in range(1, 5):
+                    self.state.video._set_output_input(out, input_port)
+
             return True
 
         except Exception as e:
@@ -174,28 +185,9 @@ class VideoAPI:
         if not 1 <= input_num <= 4:
             raise ValueError("Input number must be 1-4")
 
-        self._validate_port_name(name)
-
-        try:
-            # Input names are indexed 0-3
-            name_index = input_num - 1
-            cmd = f"#name{name_index} str={name}"
-            logger.debug(f"Renaming input: {cmd}")
-
-            response = post_request(
-                self.session,
-                self.base_url,
-                self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Renamed Input {input_num} to '{name}'")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to rename input: {e}")
-            raise DeviceError(f"Input rename failed: {e}") from e
+        return self._rename_port(
+            input_num, name, name_index_offset=0, port_type="Input", timeout=timeout
+        )
 
     def rename_output(self, output_num: int, name: str, timeout: int = 30) -> bool:
         """Rename an output port.
@@ -220,28 +212,9 @@ class VideoAPI:
         if not 1 <= output_num <= 4:
             raise ValueError("Output number must be 1-4")
 
-        self._validate_port_name(name)
-
-        try:
-            # Output names are indexed 4-7
-            name_index = output_num + 3
-            cmd = f"#name{name_index} str={name}"
-            logger.debug(f"Renaming output: {cmd}")
-
-            response = post_request(
-                self.session,
-                self.base_url,
-                self.endpoint,
-                cmd,
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            logger.info(f"Renamed Output {output_num} to '{name}'")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to rename output: {e}")
-            raise DeviceError(f"Output rename failed: {e}") from e
+        return self._rename_port(
+            output_num, name, name_index_offset=4, port_type="Output", timeout=timeout
+        )
 
     def rename_preset(self, preset_num: int, name: str, timeout: int = 30) -> bool:
         """Rename a preset.
@@ -266,13 +239,34 @@ class VideoAPI:
         if not 1 <= preset_num <= 8:
             raise ValueError("Preset number must be 1-8")
 
+        return self._rename_port(
+            preset_num, name, name_index_offset=8, port_type="Preset", timeout=timeout
+        )
+
+    def _rename_port(
+        self, port_num: int, name: str, name_index_offset: int, port_type: str, timeout: int
+    ) -> bool:
+        """Generic method to rename a port or preset.
+
+        Args:
+            port_num: Port or preset number
+            name: New name
+            name_index_offset: Offset for the name index calculation
+            port_type: Type of port ("Input", "Output", or "Preset")
+            timeout: Request timeout in seconds
+
+        Returns:
+            True if successful
+
+        Raises:
+            DeviceError: If operation fails
+        """
         self._validate_port_name(name)
 
         try:
-            # Preset names are indexed 8-15
-            name_index = preset_num + 7
+            name_index = port_num + name_index_offset - 1
             cmd = f"#name{name_index} str={name}"
-            logger.debug(f"Renaming preset: {cmd}")
+            logger.debug(f"Renaming {port_type.lower()}: {cmd}")
 
             response = post_request(
                 self.session,
@@ -282,12 +276,12 @@ class VideoAPI:
                 timeout=timeout,
             )
             response.raise_for_status()
-            logger.info(f"Renamed Preset {preset_num} to '{name}'")
+            logger.info(f"Renamed {port_type} {port_num} to '{name}'")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to rename preset: {e}")
-            raise DeviceError(f"Preset rename failed: {e}") from e
+            logger.error(f"Failed to rename {port_type.lower()}: {e}")
+            raise DeviceError(f"{port_type} rename failed: {e}") from e
 
     @staticmethod
     def _validate_port_name(name: str) -> None:

@@ -105,6 +105,7 @@ PureLinkClient(
     username: str = "",
     password: str = "",
     timeout: int = 30,
+    use_https: bool = False,
     verify_ssl: bool = True
 )
 ```
@@ -113,6 +114,7 @@ PureLinkClient(
 - **username**: Username for authentication
 - **password**: Password for authentication
 - **timeout**: Request timeout in seconds (default: 30)
+- **use_https**: Use HTTPS for connection (default: False)
 - **verify_ssl**: Verify SSL certificates (default: True)
 
 #### Methods
@@ -190,7 +192,7 @@ pypurelinkmatrix/
 │   ├── client.py             # Main connection client
 │   └── exceptions.py         # Custom exceptions
 ├── tests/                    # Test suite
-├── scripts/                  # Utility scripts
+├── examples/                 # Examples
 ├── pyproject.toml            # Project configuration
 └── README.md                 # This file
 ```
