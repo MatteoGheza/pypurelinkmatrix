@@ -23,6 +23,7 @@ Main client class for connecting to PureLink matrix devices.
 
 ```python
 PureLinkClient(
+    session: aiohttp.ClientSession,
     host: str,
     username: str = "",
     password: str = "",
@@ -33,6 +34,7 @@ PureLinkClient(
 ```
 
 **Parameters:**
+- `session` - `aiohttp.ClientSession` instance (required)
 - `host` - Device IP address or hostname (required)
 - `username` - Login username (1-15 alphanumeric/underscore)
 - `password` - Login password (1-15 alphanumeric/underscore)
@@ -42,14 +44,15 @@ PureLinkClient(
 
 ### Methods
 
-#### login(username=None, password=None) -> bool
+#### async_login(username=None, password=None) -> bool
 
 Authenticate with the device.
 
 ```python
-client = PureLinkClient(host="192.168.1.100")
-if client.login("admin", "password"):
-    print("Authenticated!")
+async with aiohttp.ClientSession() as session:
+    client = PureLinkClient(session, host="192.168.1.100")
+    if await client.async_login("admin", "password"):
+        print("Authenticated!")
 ```
 
 #### close()
@@ -93,16 +96,16 @@ Access via: `client.video`
 
 ### Methods
 
-#### switch_matrix(output: int, input_port: int, timeout: int = 30) -> bool
+#### async_switch_matrix(output: int, input_port: int, timeout: int = 30) -> bool
 
 Route an input to an output(s).
 
 ```python
 # Route Input 2 to Output 1
-client.video.switch_matrix(output_port=1, input_port=2)
+await client.video.async_switch_matrix(output_port=1, input_port=2)
 
 # Route Input 3 to all outputs
-client.video.switch_matrix(output_port=0, input_port=3)
+await client.video.async_switch_matrix(output_port=0, input_port=3)
 ```
 
 **Parameters:**
@@ -112,13 +115,13 @@ client.video.switch_matrix(output_port=0, input_port=3)
 
 ---
 
-#### save_preset(preset_num: int, timeout: int = 30) -> bool
+#### async_save_preset(preset_num: int, timeout: int = 30) -> bool
 
 Save current configuration to a preset.
 
 ```python
 # Save to Preset 1
-client.video.save_preset(preset_num=1)
+await client.video.async_save_preset(preset_num=1)
 ```
 
 **Parameters:**
@@ -127,13 +130,13 @@ client.video.save_preset(preset_num=1)
 
 ---
 
-#### recall_preset(preset_num: int, timeout: int = 30) -> bool
+#### async_recall_preset(preset_num: int, timeout: int = 30) -> bool
 
 Restore a previously saved preset.
 
 ```python
 # Load Preset 2
-client.video.recall_preset(preset_num=2)
+await client.video.async_recall_preset(preset_num=2)
 ```
 
 **Parameters:**
@@ -142,13 +145,13 @@ client.video.recall_preset(preset_num=2)
 
 ---
 
-#### rename_input(input_num: int, name: str, timeout: int = 30) -> bool
+#### async_rename_input(input_num: int, name: str, timeout: int = 30) -> bool
 
 Set custom name for an input port.
 
 ```python
-client.video.rename_input(1, "Camera_Main")
-client.video.rename_input(2, "Laptop_Presenter")
+await client.video.async_rename_input(1, "Camera_Main")
+await client.video.async_rename_input(2, "Laptop_Presenter")
 ```
 
 **Parameters:**
@@ -158,13 +161,13 @@ client.video.rename_input(2, "Laptop_Presenter")
 
 ---
 
-#### rename_output(output_num: int, name: str, timeout: int = 30) -> bool
+#### async_rename_output(output_num: int, name: str, timeout: int = 30) -> bool
 
 Set custom name for an output port.
 
 ```python
-client.video.rename_output(1, "MainDisplay")
-client.video.rename_output(2, "SecondDisplay")
+await client.video.async_rename_output(1, "MainDisplay")
+await client.video.async_rename_output(2, "SecondDisplay")
 ```
 
 **Parameters:**
@@ -174,13 +177,13 @@ client.video.rename_output(2, "SecondDisplay")
 
 ---
 
-#### rename_preset(preset_num: int, name: str, timeout: int = 30) -> bool
+#### async_rename_preset(preset_num: int, name: str, timeout: int = 30) -> bool
 
 Set custom name for a preset.
 
 ```python
-client.video.rename_preset(1, "Conference")
-client.video.rename_preset(2, "Presentation")
+await client.video.async_rename_preset(1, "Conference")
+await client.video.async_rename_preset(2, "Presentation")
 ```
 
 **Parameters:**
@@ -198,16 +201,16 @@ Access via: `client.audio`
 
 ### Methods
 
-#### set_hdmi_output(output: int, enabled: bool, timeout: int = 30) -> bool
+#### async_set_hdmi_output(output: int, enabled: bool, timeout: int = 30) -> bool
 
 Enable/disable HDMI audio output.
 
 ```python
 # Enable HDMI on Output 1
-client.audio.set_hdmi_output(output=1, enabled=True)
+await client.audio.async_set_hdmi_output(output=1, enabled=True)
 
 # Disable HDMI on all outputs
-client.audio.set_hdmi_output(output=0, enabled=False)
+await client.audio.async_set_hdmi_output(output=0, enabled=False)
 ```
 
 **Parameters:**
@@ -217,16 +220,16 @@ client.audio.set_hdmi_output(output=0, enabled=False)
 
 ---
 
-#### set_de_embed_output(output: int, enabled: bool, timeout: int = 30) -> bool
+#### async_set_de_embed_output(output: int, enabled: bool, timeout: int = 30) -> bool
 
 Enable/disable de-embedded audio output.
 
 ```python
 # Enable de-embed on Output 2
-client.audio.set_de_embed_output(output=2, enabled=True)
+await client.audio.async_set_de_embed_output(output=2, enabled=True)
 
 # Enable on all outputs
-client.audio.set_de_embed_output(output=0, enabled=True)
+await client.audio.async_set_de_embed_output(output=0, enabled=True)
 ```
 
 **Parameters:**
@@ -273,19 +276,19 @@ Available EDID sources (1-17):
 
 ### Methods
 
-#### set_input_edid(input_num: int, edid_source: int, timeout: int = 30) -> bool
+#### async_set_input_edid(input_num: int, edid_source: int, timeout: int = 30) -> bool
 
 Configure EDID for an input.
 
 ```python
 # Set 4K60 LPCM on Input 1
-client.edid.set_input_edid(input_num=1, edid_source=1)
+await client.edid.async_set_input_edid(input_num=1, edid_source=1)
 
 # Set 1080P60 on Input 2
-client.edid.set_input_edid(input_num=2, edid_source=4)
+await client.edid.async_set_input_edid(input_num=2, edid_source=4)
 
 # Set same EDID on all inputs
-client.edid.set_input_edid(input_num=0, edid_source=3)
+await client.edid.async_set_input_edid(input_num=0, edid_source=3)
 ```
 
 **Parameters:**
@@ -295,19 +298,19 @@ client.edid.set_input_edid(input_num=0, edid_source=3)
 
 ---
 
-#### set_user_edid(source_profile: int, destination: int, timeout: int = 30) -> bool
+#### async_set_user_edid(source_profile: int, destination: int, timeout: int = 30) -> bool
 
 Copy EDID profile to user storage.
 
 ```python
 # Copy Default1 to User1
-client.edid.set_user_edid(source_profile=1, destination=1)
+await client.edid.async_set_user_edid(source_profile=1, destination=1)
 
 # Copy Default4 to all user slots
-client.edid.set_user_edid(source_profile=4, destination=0)
+await client.edid.async_set_user_edid(source_profile=4, destination=0)
 
 # Copy Output1 EDID to User2
-client.edid.set_user_edid(source_profile=13, destination=2)
+await client.edid.async_set_user_edid(source_profile=13, destination=2)
 ```
 
 **Parameters:**
@@ -325,12 +328,12 @@ Access via: `client.network`
 
 ### Methods
 
-#### configure_static_ip(ip_address: str, subnet_mask: str, gateway: str, timeout: int = 30) -> bool
+#### async_configure_static_ip(ip_address: str, subnet_mask: str, gateway: str, timeout: int = 30) -> bool
 
 Configure static IP address.
 
 ```python
-client.network.configure_static_ip(
+await client.network.async_configure_static_ip(
     ip_address="192.168.1.100",
     subnet_mask="255.255.255.0",
     gateway="192.168.1.1"
@@ -349,12 +352,12 @@ client.network.configure_static_ip(
 
 ---
 
-#### enable_dhcp(timeout: int = 30) -> bool
+#### async_enable_dhcp(timeout: int = 30) -> bool
 
 Enable DHCP for automatic IP configuration.
 
 ```python
-client.network.enable_dhcp()
+await client.network.async_enable_dhcp()
 ```
 
 **Parameters:**
@@ -362,12 +365,12 @@ client.network.enable_dhcp()
 
 ---
 
-#### disable_dhcp(timeout: int = 30) -> bool
+#### async_disable_dhcp(timeout: int = 30) -> bool
 
 Disable DHCP for static IP mode.
 
 ```python
-client.network.disable_dhcp()
+await client.network.async_disable_dhcp()
 ```
 
 **Parameters:**
@@ -383,12 +386,12 @@ Access via: `client.system`
 
 ### Methods
 
-#### reboot(timeout: int = 30) -> bool
+#### async_reboot(timeout: int = 30) -> bool
 
 Reboot the device.
 
 ```python
-client.system.reboot()
+await client.system.async_reboot()
 ```
 
 **Parameters:**
@@ -398,7 +401,7 @@ client.system.reboot()
 
 ---
 
-#### factory_reset_common(timeout: int = 30) -> bool
+#### async_factory_reset_common(timeout: int = 30) -> bool
 
 Reset common settings to factory defaults.
 
@@ -406,7 +409,7 @@ Resets: Video, Audio, EDID, Network settings
 Preserves: Presets, custom names, user EDID profiles
 
 ```python
-client.system.factory_reset_common()
+await client.system.async_factory_reset_common()
 ```
 
 **Parameters:**
@@ -416,14 +419,14 @@ client.system.factory_reset_common()
 
 ---
 
-#### factory_reset_all(timeout: int = 30) -> bool
+#### async_factory_reset_all(timeout: int = 30) -> bool
 
 Reset all settings to factory defaults.
 
 Resets: Everything including presets and user data
 
 ```python
-client.system.factory_reset_all()
+await client.system.async_factory_reset_all()
 ```
 
 **Parameters:**
@@ -433,16 +436,16 @@ client.system.factory_reset_all()
 
 ---
 
-#### change_password(username: str, password: str, timeout: int = 30) -> bool
+#### async_change_password(username: str, password: str, timeout: int = 30) -> bool
 
 Change or create user password.
 
 ```python
 # Change admin password
-client.system.change_password("admin", "newpass123")
+await client.system.async_change_password("admin", "newpass123")
 
 # Create new user
-client.system.change_password("operator", "operator_pass")
+await client.system.async_change_password("operator", "operator_pass")
 ```
 
 **Parameters:**
@@ -478,7 +481,7 @@ Video matrix routing configuration (read-only, updated automatically by API call
 input_port = state.video.get_output_input(output=1)
 
 # Use API to set routing (updates state automatically)
-client.video.switch_matrix(output_port=1, input_port=2)
+await client.video.async_switch_matrix(output_port=1, input_port=2)
 ```
 
 ### AudioState
@@ -492,7 +495,7 @@ if output_1:
     print(output_1.de_embed_enabled)
 
 # Use API to change settings (updates state automatically)
-client.audio.set_hdmi_output(output=1, enabled=True)
+await client.audio.async_set_hdmi_output(output=1, enabled=True)
 ```
 
 ### EDIDState
@@ -504,7 +507,7 @@ EDID configuration for all inputs (read-only, updated automatically by API calls
 edid = state.edid.get_input_edid(input_num=1)
 
 # Use API to set EDID (updates state automatically)
-client.edid.set_input_edid(input_num=1, edid_source=1)
+await client.edid.async_set_input_edid(input_num=1, edid_source=1)
 ```
 
 ### NetworkState
@@ -552,17 +555,18 @@ from pypurelinkmatrix.exceptions import (
     DeviceError,
 )
 
-try:
-    client = PureLinkClient(host="192.168.1.100")
-    client.login("admin", "password")
-except ValidationError as e:
-    print(f"Invalid input: {e}")
-except AuthenticationError as e:
-    print(f"Authentication failed: {e}")
-except PureLinkConnectionError as e:
-    print(f"Cannot connect to device: {e}")
-except DeviceError as e:
-    print(f"Device error: {e}")
+async with aiohttp.ClientSession() as session:
+    try:
+        client = PureLinkClient(session, host="192.168.1.100")
+        await client.async_login("admin", "password")
+    except ValidationError as e:
+        print(f"Invalid input: {e}")
+    except AuthenticationError as e:
+        print(f"Authentication failed: {e}")
+    except PureLinkConnectionError as e:
+        print(f"Cannot connect to device: {e}")
+    except DeviceError as e:
+        print(f"Device error: {e}")
 ```
 
 ---
@@ -572,53 +576,55 @@ except DeviceError as e:
 ### Complete Device Setup
 
 ```python
-with PureLinkClient(host="192.168.1.100") as client:
+async with aiohttp.ClientSession() as session:
+    client = PureLinkClient(session, host="192.168.1.100")
+
     # Authenticate
-    client.login("admin", "password")
+    await client.async_login("admin", "password")
 
     # Configure video routing
-    client.video.switch_matrix(output_port=1, input_port=1)
-    client.video.switch_matrix(output_port=2, input_port=2)
+    await client.video.async_switch_matrix(output_port=1, input_port=1)
+    await client.video.async_switch_matrix(output_port=2, input_port=2)
 
     # Set names
-    client.video.rename_input(1, "Presenter")
-    client.video.rename_output(1, "Main_Screen")
+    await client.video.async_rename_input(1, "Presenter")
+    await client.video.async_rename_output(1, "Main_Screen")
 
     # Configure audio
-    client.audio.set_hdmi_output(output=0, enabled=True)
+    await client.audio.async_set_hdmi_output(output=0, enabled=True)
 
     # Set EDID
-    client.edid.set_input_edid(input_num=0, edid_source=1)
+    await client.edid.async_set_input_edid(input_num=0, edid_source=1)
 
     # Save preset
-    client.video.save_preset(preset_num=1)
+    await client.video.async_save_preset(preset_num=1)
 ```
 
 ### Preset Management
 
 ```python
 # Create preset
-client.video.switch_matrix(1, 1)
-client.video.switch_matrix(2, 2)
-client.video.rename_preset(1, "Conference")
-client.video.save_preset(1)
+await client.video.async_switch_matrix(1, 1)
+await client.video.async_switch_matrix(2, 2)
+await client.video.async_rename_preset(1, "Conference")
+await client.video.async_save_preset(1)
 
 # Later: Recall preset
-client.video.recall_preset(1)
+await client.video.async_recall_preset(1)
 ```
 
 ### Network Configuration
 
 ```python
 # Configure static IP
-client.network.configure_static_ip(
+await client.network.async_configure_static_ip(
     ip_address="192.168.1.100",
     subnet_mask="255.255.255.0",
     gateway="192.168.1.1"
 )
 
 # Or enable DHCP
-client.network.enable_dhcp()
+await client.network.async_enable_dhcp()
 ```
 
 ---
@@ -629,7 +635,7 @@ Always wrap operations in try-except blocks:
 
 ```python
 try:
-    client.video.switch_matrix(output_port=1, input_port=2)
+    await client.video.async_switch_matrix(output_port=1, input_port=2)
 except ValueError as e:
     print(f"Invalid parameters: {e}")
 except DeviceError as e:
@@ -648,7 +654,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Now API calls will be logged
-client.video.switch_matrix(1, 2)
+await client.video.async_switch_matrix(1, 2)
 ```
 
 ---
