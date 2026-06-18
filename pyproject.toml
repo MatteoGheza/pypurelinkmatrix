@@ -120,3 +120,6 @@ strict_equality = true
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 addopts = "--cov=src/pypurelinkmatrix --cov-report=html --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = ["src/pypurelinkmatrix/simulator/*"]

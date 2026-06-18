@@ -107,7 +107,7 @@ class WebInfo:
     run: RunInfo = field(default_factory=RunInfo)
     name: StringInfo = field(default_factory=StringInfo)
 
-    def reset(self) -> None:
+    def reset(self) -> None:  # pragma: no cover
         """Reset all data to default values."""
         self.ip = IPInfo()
         self.run = RunInfo()

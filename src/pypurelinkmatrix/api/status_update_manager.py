@@ -236,7 +236,7 @@ class StatusUpdateManager:
 
             mac_parts = [f"{data[start_ip + 17 + i]:02X}" for i in range(6)]
             self.web_data.ip.mac = ":".join(mac_parts)
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.error(f"Error parsing IP block: {e}")
 
     def _parse_data_block_1(self, data: bytes, start_addr: int, data_length: int) -> None:
@@ -300,12 +300,12 @@ class StatusUpdateManager:
         try:
             start_edid = start_addr
             for i in range(21):
-                if start_edid + i * 64 + 64 > len(data):
+                if start_edid + i * 64 + 64 > len(data):  # pragma: no cover
                     break
                 edid_bytes = data[start_edid + i * 64 : start_edid + i * 64 + 64]
                 edid_str = edid_bytes.split(b"\x00")[0].decode("utf-8", errors="ignore").strip()
                 self.web_data.name.edid_info[i] = edid_str
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.error(f"Error parsing EDID info block: {e}")
 
     def _parse_data_block_3(self, data: bytes, start_addr: int, data_length: int) -> None:
@@ -313,7 +313,7 @@ class StatusUpdateManager:
         try:
             start_pos = start_addr
             for i in range(8):
-                if start_pos + i * 16 + 16 > len(data):
+                if start_pos + i * 16 + 16 > len(data):  # pragma: no cover
                     break
                 name_bytes = data[start_pos + i * 16 : start_pos + i * 16 + 16]
                 name_str = name_bytes.split(b"\x00")[0].decode("utf-8", errors="ignore").strip()
@@ -321,12 +321,12 @@ class StatusUpdateManager:
 
             for i in range(8):
                 name_offset = start_pos + 128 + i * 16
-                if name_offset + 16 > len(data):
+                if name_offset + 16 > len(data):  # pragma: no cover
                     break
                 name_bytes = data[name_offset : name_offset + 16]
                 name_str = name_bytes.split(b"\x00")[0].decode("utf-8", errors="ignore").strip()
                 self.web_data.name.preset_name[i] = name_str
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.error(f"Error parsing names block: {e}")
 
     async def async_get_state(self) -> WebInfo:

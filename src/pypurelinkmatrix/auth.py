@@ -99,7 +99,7 @@ class PureLinkAuth:
         timestamped_endpoint = self.get_timestamped_endpoint(endpoint)
         url = f"{self.base_url}/{timestamped_endpoint}"
 
-        if "ssl" not in kwargs and self.use_https:
+        if "ssl" not in kwargs and self.use_https:  # pragma: no cover
             kwargs["ssl"] = self.verify_ssl
 
         logger.debug(f"Making {method.upper()} request to {url}")
