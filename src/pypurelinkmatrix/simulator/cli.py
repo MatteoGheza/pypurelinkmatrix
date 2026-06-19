@@ -13,7 +13,7 @@ def main():
     # Run FastAPI in a background thread
     server_thread = threading.Thread(
         target=uvicorn.run,
-        kwargs={"app": app, "host": "0.0.0.0", "port": 80, "log_level": "error"},
+        kwargs={"app": app, "host": "0.0.0.0", "port": 8000, "log_level": "error"},
         daemon=True,
     )
     server_thread.start()

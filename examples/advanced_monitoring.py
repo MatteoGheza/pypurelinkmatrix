@@ -167,7 +167,12 @@ async def main():
     async with aiohttp.ClientSession() as session:
         try:
             logger.info(f"Connecting to {host_with_port}...")
-            client = PureLinkClient(session, host=host_with_port)
+            client = PureLinkClient(
+                session,
+                host=host_with_port,
+                username=username,
+                password=password,
+            )
 
             if not await client.async_login():
                 logger.error("Authentication failed")

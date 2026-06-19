@@ -32,7 +32,12 @@ async def main():
     print("=" * 60)
 
     async with aiohttp.ClientSession() as session:
-        client = PureLinkClient(session, host=host_with_port)
+        client = PureLinkClient(
+            session,
+            host=host_with_port,
+            username=username,
+            password=password,
+        )
 
         if not await client.async_login():
             print("✗ Authentication failed")

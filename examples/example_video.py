@@ -28,7 +28,12 @@ host_with_port = f"{host}:{port}" if port != "80" else host
 
 async def main():
     async with aiohttp.ClientSession() as session:
-        client = PureLinkClient(session, host=host_with_port)
+        client = PureLinkClient(
+            session,
+            host=host_with_port,
+            username=username,
+            password=password,
+        )
 
         if not await client.async_login():
             print("✗ Authentication failed")

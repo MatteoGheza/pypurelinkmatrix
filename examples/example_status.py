@@ -33,7 +33,12 @@ async def main():
     """Query complete device status."""
     print("\n=== Device Status ===")
     async with aiohttp.ClientSession() as session:
-        client = PureLinkClient(session, host=host_with_port)
+        client = PureLinkClient(
+            session,
+            host=host_with_port,
+            username=username,
+            password=password,
+        )
 
         try:
             if not await client.async_login():

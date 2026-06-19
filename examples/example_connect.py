@@ -40,7 +40,12 @@ async def example_basic_login():
     """Basic login to device."""
     print("\n=== Basic Login ===")
     async with aiohttp.ClientSession() as session:
-        client = PureLinkClient(session, host=host_with_port)
+        client = PureLinkClient(
+            session,
+            host=host_with_port,
+            username=username,
+            password=password,
+        )
         try:
             if await client.async_login():
                 print(f"✓ Authenticated: {client}")

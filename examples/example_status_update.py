@@ -50,7 +50,12 @@ def on_port_names_update(block_num: int, data: bytes, size: int) -> None:
 async def main():
     """Run status update manager with callbacks."""
     async with aiohttp.ClientSession() as session:
-        client = PureLinkClient(session, host=host_with_port)
+        client = PureLinkClient(
+            session,
+            host=host_with_port,
+            username=username,
+            password=password,
+        )
 
         # Login to device
         if not await client.async_login():

@@ -306,7 +306,7 @@ class MatrixSimulator:
         # Login/Register
         if cmd.startswith("#login"):
             # Return status:1 for success
-            return '{"status":1}'
+            return 'settingsLoginCallback({"status":"1","str":""});'
         if cmd.startswith("#register255"):
             import re
 
