@@ -657,15 +657,4 @@ logging.basicConfig(level=logging.DEBUG)
 await client.video.async_switch_matrix(1, 2)
 ```
 
----
-
-## Version Information
-
-- **Library Version:** 0.1.0
-- **Supported Device:** PT-MA-HD44M
-- **API Version:** 1.0
-- **Python:** 3.9+
-
----
-
 For more examples, see `examples/example_full_api.py`

@@ -11,6 +11,18 @@ A modern Python library for connecting to and managing PureLink matrix switching
 - ✅ Input validation following device requirements
 - 🎯 Context manager support for automatic resource cleanup
 
+## 🤖 AI Assistance Disclosure
+
+Parts of this project were developed with the assistance of Artificial Intelligence. AI tools were utilized as an accelerator to:
+* Co-author and refine segments of the core library code.
+* Help parse and structure raw data payloads during the reverse-engineering of the original hardware protocol.
+* Transform early functional prototypes into a structured, production-ready package architecture.
+* Generate test suites (`pytest`) and draft structural documentation.
+
+While AI assisted in speeding up the development workflow, all architectural decisions, hardware testing, protocol verification, and final code reviews were executed entirely by the author to ensure reliability and accuracy.
+
+---
+
 ## Installation
 
 ### Using UV (recommended)
@@ -208,7 +220,7 @@ Contributions are welcome! Please ensure:
 
 ## License
 
-MIT License - see LICENSE file for details
+GPL-3.0 License - see LICENSE file for details
 
 ## Support
 
@@ -219,13 +231,3 @@ Many thanks to:
 - PureLink for hardware (and less for their documentation)
 - [HTTP Toolkit](https://httptoolkit.com/) for making reverse engineering so much easier
 - [Github Copilot](https://github.com/features/copilot) for helping me writing a prototype (and unit testing) faster
-
-## Changelog
-
-### 0.1.0 (2026-01-03)
-
-- Initial release
-- Basic connection client implementation
-- Login/authentication support
-- Input validation following device requirements
-- Full type hints and documentation
