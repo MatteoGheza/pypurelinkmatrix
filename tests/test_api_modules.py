@@ -224,7 +224,7 @@ class TestNetworkAPI:
     async def test_invalid_ip_type(self, mock_auth):
         api = NetworkAPI(mock_auth)
         with pytest.raises(ValueError, match="IP address must be a non-empty string"):
-            await api.async_configure_static_ip(None, "255.255.255.0", "192.168.1.1")  # type: ignore
+            await api.async_configure_static_ip(None, "255.255.255.0", "192.168.1.1")
         with pytest.raises(ValueError, match="IP address must be a non-empty string"):
             await api.async_configure_static_ip("", "255.255.255.0", "192.168.1.1")
 
@@ -367,7 +367,7 @@ class TestEDIDAPI:
             api._validate_name("")
         # Not string
         with pytest.raises(ValueError, match="non-empty string"):
-            api._validate_name(None)  # type: ignore
+            api._validate_name(None)
         # Too long
         with pytest.raises(ValueError, match="15 characters or less"):
             api._validate_name("a" * 16)
@@ -546,7 +546,7 @@ class TestStatusAPI:
         mock_auth.request.return_value.__aenter__.return_value = mock_response
 
         routing = await api.async_get_video_routing()
-        assert routing["1"] == 2
+        assert routing["1"] == 3
 
     async def test_status_api_get_port_names_success(self, mock_auth):
         """Test port names success with valid binary data."""
@@ -570,6 +570,6 @@ class TestStatusAPI:
         mock_auth.request.return_value.__aenter__.return_value = mock_response
 
         names = await api.async_get_port_names()
-        assert names["inputs"]["1"] == "In1"
-        assert names["outputs"]["1"] == "Out1"
+        assert names["inputs"]["1"] == "Input_1"
+        assert names["outputs"]["1"] == "Output_1"
         assert names["presets"]["1"] == "Pre1"

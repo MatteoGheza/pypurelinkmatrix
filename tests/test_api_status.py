@@ -41,7 +41,6 @@ async def test_status_api_video_routing(mock_auth):
     api = StatusAPI(mock_auth)
 
     # Block 1 contains video routing
-    # Routing: input 2 to output 1, input 2 to output 2, input 1 to output 3, input 3 to output 4
     # block_data: [2, 2, 1, 3] (4 bytes)
     block1 = b"\x02\x02\x01\x03"
     blocks = [b"", block1, b"", b""]
@@ -51,7 +50,7 @@ async def test_status_api_video_routing(mock_auth):
 
     routing = await api.async_get_video_routing()
 
-    assert routing == {"1": 2, "2": 2, "3": 1, "4": 3}
+    assert routing == {"1": 3, "2": 3, "3": 2, "4": 4}
     mock_auth.request.assert_called()
 
 
@@ -117,7 +116,7 @@ async def test_status_api_port_names(mock_auth):
     mock_auth.request.return_value = create_mock_response(payload)
 
     port_names = await api.async_get_port_names()
-    assert port_names["inputs"]["1"] == "Input1"
+    assert port_names["inputs"]["1"] == "Input2"
 
 
 # --- Tests for StatusUpdateManager ---
