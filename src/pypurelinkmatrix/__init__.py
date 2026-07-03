@@ -1,6 +1,11 @@
 """PyPureLink Matrix - Python library for PureLink matrix device management."""
 
-__version__ = "0.1.0"
+import importlib.metadata
+
+try:
+    __version__ = importlib.metadata.version("pypurelinkmatrix")
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.1"
 
 from .auth import PureLinkAuth
 from .client import PureLinkClient
