@@ -12,7 +12,17 @@ license = "GPL-3.0-only"
 authors = [
     {name = "Matteo Gheza", email = "me@matteogheza.it"}
 ]
-keywords = ["purelink", "matrix", "device", "connection"]
+keywords = [
+    "purelink",
+    "matrix",
+    "device",
+    "connection",
+    "video-matrix",
+    "av-over-ip",
+    "pro-av",
+    "audiovisual",
+    "broadcast"
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
 
