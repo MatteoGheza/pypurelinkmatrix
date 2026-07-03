@@ -430,7 +430,7 @@ class StatusAPI:
                 if input_val > 4:  # pragma: no cover
                     input_val = 1
 
-                routing[str(output)] = input_val
+                routing[str(output)] = input_val + 1
 
             logger.debug(f"Parsed video routing: {routing}")
 
@@ -538,14 +538,14 @@ class StatusAPI:
                 name_bytes = block_3_data[name_offset : name_offset + 16]
                 name_str = name_bytes.split(b"\x00")[0].decode("utf-8", errors="ignore").strip()
                 if name_str:
-                    port_names["inputs"][str(i + 1)] = name_str
+                    port_names["inputs"][str(i)] = name_str
 
             for i in range(4):
                 name_offset = (4 + i) * 16
                 name_bytes = block_3_data[name_offset : name_offset + 16]
                 name_str = name_bytes.split(b"\x00")[0].decode("utf-8", errors="ignore").strip()
                 if name_str:
-                    port_names["outputs"][str(i + 1)] = name_str
+                    port_names["outputs"][str(i)] = name_str
 
             for i in range(8):
                 name_offset = 128 + (i * 16)
